@@ -11,10 +11,11 @@ type Stop struct {
 }
 
 type Path struct {
-	stopOrder []Stop
-	totalTime int //in seconds or soemthing?
+	StopOrder []Stop
+	TotalTime int //in seconds or soemthing?
 }
 
+//bruteforce path calculator with travel time
 func BruteForcePathFinder(stops []Stop, travelTimeMatrix [][]int) Path {
 	//do brute force algo to find best path
 
@@ -50,9 +51,81 @@ func BruteForcePathFinder(stops []Stop, travelTimeMatrix [][]int) Path {
 		fastestStops[index] = stops[stopNum]
 	}
 	return Path{
-		stopOrder: fastestStops,
-		totalTime: fastestTime,
+		StopOrder: fastestStops,
+		TotalTime: fastestTime,
 	}
+}
+
+//brute forces a calculation of th ebest route based on travel distance regardless of traffic/ transit time
+func BruteForcePathFinderWithDistance(stops []Stop) Path {
+
+	//build distance matrix
+	numStops := len(stops)
+	distanceMatrix := make([][]float64, numStops)
+	for i := range distanceMatrix {
+		distanceMatrix[i] = make([]float64, numStops)
+		for j := 0; j < numStops; j++ {
+			if i == j {
+				distanceMatrix[i][j] = 0
+			} else {
+				distanceMatrix[i][j] = calculateEdgeDistance(
+					stops[i].Latitude, stops[i].Longitude,
+					stops[j].Latitude, stops[j].Longitude,
+				)
+			}
+		}
+	}
+
+	//turn stops into indices for easier calculating
+	indices := make([]int, numStops)
+	for i := 0; i < numStops; i++ {
+		indices[i] = i
+	}
+
+	var fastestOrder []int
+	fastestDistance := math.MaxFloat64
+
+	permutations := findPermutations(indices)
+
+	//find shortest distance for that perm
+	for _, perm := range permutations {
+		currentDistance := calculatePathDistance(perm, distanceMatrix)
+		if currentDistance < fastestDistance {
+			fastestDistance = currentDistance
+			fastestOrder = make([]int, len(perm))
+			copy(fastestOrder, perm)
+		}
+	}
+
+	//make slice with the route order to return
+	fastestStops := make([]Stop, len(fastestOrder))
+	for index, stopNum := range fastestOrder {
+		fastestStops[index] = stops[stopNum]
+	}
+
+	//return the order
+	return Path{
+		StopOrder: fastestStops,
+		TotalTime: int(fastestDistance), //temporary TODO FIX LATER
+	}
+}
+
+//straight line distance between 2 points
+func calculateEdgeDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	latDiff := lat2 - lat1
+	lonDiff := lon2 - lon1
+	return math.Sqrt(latDiff*latDiff + lonDiff*lonDiff)
+}
+
+//calc length of an entire route given the order of stops and the distance matrix
+func calculatePathDistance(order []int, distanceMatrix [][]float64) float64 {
+	total := 0.0
+	for i := 0; i < len(order)-1; i++ {
+		from := order[i]
+		to := order[i+1]
+		total += distanceMatrix[from][to]
+	}
+	return total
 }
 
 //takes a list of numbers and outputs the different permutations of them

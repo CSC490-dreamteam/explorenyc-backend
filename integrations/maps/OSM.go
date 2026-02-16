@@ -21,6 +21,8 @@ type Address struct {
 }
 
 func GrabAddressFromOSM(query string) (Address, error) {
+
+	//create the url
 	const endpoint = "https://nominatim.openstreetmap.org/search"
 	params := url.Values{}
 	params.Add("q", string(query))
@@ -30,11 +32,19 @@ func GrabAddressFromOSM(query string) (Address, error) {
 
 	requestURL := fmt.Sprintf("%s?%s", endpoint, params.Encode())
 
-	response, err := http.Get(requestURL)
+	//send out the http request
+	request, err := http.NewRequest("GET", requestURL, nil)
 	if err != nil {
 		return Address{}, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer response.Body.Close()
+	request.Header.Set("User-Agent", "ExploreNYC/0.1 college group project)")
+	response, err := http.DefaultClient.Do(request)
+
+	if err != nil { //possibly redudant with the error printing below
+		return Address{}, fmt.Errorf("HTTP request failed: %w", err)
+	}
+
+	defer response.Body.Close() //executes at the end of the function, NOT HERE (golang quirk)
 
 	//read the response
 	body, err := io.ReadAll(response.Body)
@@ -60,7 +70,7 @@ func GrabAddressFromOSM(query string) (Address, error) {
 		} `json:"address"`
 	}
 
-	//formatting  error
+	//check for formatting  errors
 	if err := json.Unmarshal(body, &results); err != nil {
 		return Address{}, fmt.Errorf("JSON unmarshal error: %w", err)
 	}
@@ -70,7 +80,7 @@ func GrabAddressFromOSM(query string) (Address, error) {
 		return Address{}, fmt.Errorf("no results found for query: %s", query)
 	}
 
-	//get first result
+	//get first result if there are multiple
 	result := results[0]
 
 	//convert coordinates to float64
