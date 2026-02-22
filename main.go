@@ -40,7 +40,11 @@ func main() {
 
 	router := gin.Default()
 
-	router.Use(cors.Default())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"*"}, // allows all origins — fine for MVP
+		AllowMethods: []string{"POST", "GET", "OPTIONS"},
+		AllowHeaders: []string{"Content-Type", "X-API-Key"},
+	}))
 	router.Use(apiKeyAuth())
 
 	router.POST("/GenerateRoute", func(context *gin.Context) {
