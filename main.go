@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
@@ -40,10 +39,9 @@ func apiKeyAuth() gin.HandlerFunc {
 }
 
 func main() {
-	dotenv_error := godotenv.Load()
-	if dotenv_error != nil {
-		log.Fatal("error loading .env")
-	}
+
+	//loads .env is local, doesn't if on railway
+	_ = godotenv.Load()
 
 	router := gin.Default()
 
