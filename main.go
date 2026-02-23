@@ -8,6 +8,8 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
+	"github.com/joho/godotenv"
+
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
 )
@@ -38,6 +40,9 @@ func apiKeyAuth() gin.HandlerFunc {
 
 func main() {
 
+	//loads .env is local, doesn't if on railway
+	_ = godotenv.Load()
+
 	router := gin.Default()
 
 	router.Use(cors.New(cors.Config{
@@ -58,7 +63,8 @@ func main() {
 		var errors []string
 
 		for _, location := range req.Locations {
-			addr, err := maps.GrabAddressFromOSM(location)
+			//addr, err := maps.GrabAddressFromOSM(location)
+			addr, err := maps.GrabAddressFromGoogleMaps(location)
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location, err))
 				continue

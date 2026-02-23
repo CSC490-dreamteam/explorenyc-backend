@@ -6,19 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 //FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING
-
-type Address struct {
-	Lat         float64
-	Lon         float64
-	Street      string
-	City        string
-	State       string
-	Zip         string
-	DisplayName string
-}
 
 func GrabAddressFromOSM(query string) (Address, error) {
 
@@ -96,13 +87,14 @@ func GrabAddressFromOSM(query string) (Address, error) {
 	street += result.Address.Road
 
 	return Address{
-		Lat:         lat,
-		Lon:         lon,
-		Street:      street,
-		City:        result.Address.City,
-		State:       result.Address.State,
-		Zip:         result.Address.Postcode,
-		DisplayName: result.DisplayName,
+		Lat:              lat,
+		Lon:              lon,
+		Street:           street,
+		City:             result.Address.City,
+		State:            result.Address.State,
+		Zip:              result.Address.Postcode,
+		PlaceName:        strings.Split(result.DisplayName, ",")[0],
+		FormattedAddress: result.DisplayName,
 	}, nil
 
 }
