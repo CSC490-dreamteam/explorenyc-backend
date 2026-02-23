@@ -14,6 +14,6 @@ type Address struct {
 	City             string
 	State            string
 	Zip              string
-	placeName        string
-	formattedAddress string
+	PlaceName        string
+	FormattedAddress string
 }

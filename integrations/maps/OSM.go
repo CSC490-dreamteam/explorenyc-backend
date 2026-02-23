@@ -93,8 +93,8 @@ func GrabAddressFromOSM(query string) (Address, error) {
 		City:             result.Address.City,
 		State:            result.Address.State,
 		Zip:              result.Address.Postcode,
-		placeName:        strings.Split(result.DisplayName, ",")[0],
-		formattedAddress: result.DisplayName,
+		PlaceName:        strings.Split(result.DisplayName, ",")[0],
+		FormattedAddress: result.DisplayName,
 	}, nil
 
 }

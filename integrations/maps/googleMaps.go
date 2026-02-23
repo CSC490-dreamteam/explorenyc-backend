@@ -60,7 +60,7 @@ func GrabAddressFromGoogleMaps(query string) (Address, error) {
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("X-Goog-Api-Key", apiKey)
 	request.Header.Set("X-Goog-FieldMask",
-		"places.displayName,places.addressComponents,places.location") //what data we get and what we google bills us
+		"places.displayName,places.formattedAddress,places.addressComponents,places.location") //what data we get and what we google bills us
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -138,8 +138,8 @@ func GrabAddressFromGoogleMaps(query string) (Address, error) {
 		City:             city,
 		State:            state,
 		Zip:              zip,
-		placeName:        place.DisplayName.Text,
-		formattedAddress: place.FormattedAddress,
+		PlaceName:        place.DisplayName.Text,
+		FormattedAddress: place.FormattedAddress,
 	}, nil
 
 }
