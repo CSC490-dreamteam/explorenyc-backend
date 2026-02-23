@@ -30,3 +30,8 @@ func GetGoogleMapsRouteExportURL(path pathfinders.Path) string {
 	return baseURL + urlPath
 
 }
+
+func GrabAddressFromGoogleMaps(query string) (Address, error) {
+	const endpoint = "https://places.googleapis.com/v1/places:searchText"
+
+}

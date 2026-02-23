@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+
+	"github.com/joho/godotenv"
 
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
@@ -37,6 +40,10 @@ func apiKeyAuth() gin.HandlerFunc {
 }
 
 func main() {
+	dotenv_error := godotenv.Load()
+	if dotenv_error != nil {
+		log.Fatal("error loading .env")
+	}
 
 	router := gin.Default()
 
