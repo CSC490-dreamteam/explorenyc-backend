@@ -103,12 +103,13 @@ func GrabAddressFromGoogleMaps(query string) (Address, error) {
 		return Address{}, fmt.Errorf("no results found for query: %s", query)
 	}
 
-	place := result.Places[0]
+	place := result.Places[0] //just grabs the first one for now
 
+	//divvy up data to their respective parts
 	var streetNumber, route, city, state, zip string
 	for _, component := range place.AddressComponents {
-		for _, t := range component.Types {
-			switch t {
+		for _, text := range component.Types {
+			switch text {
 			case "street_number":
 				streetNumber = component.LongText
 			case "route":
@@ -116,13 +117,14 @@ func GrabAddressFromGoogleMaps(query string) (Address, error) {
 			case "locality":
 				city = component.LongText
 			case "administrative_area_level_1":
-				state = component.ShortText // "NY" instead of "New York"
+				state = component.ShortText //"NY" instead of "New York"
 			case "postal_code":
 				zip = component.LongText
 			}
 		}
 	}
 
+	//fuses together street number and street name nicely
 	street := streetNumber
 	if street != "" && route != "" {
 		street += " "
