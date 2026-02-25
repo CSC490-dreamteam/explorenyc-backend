@@ -6,14 +6,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	"strings"
 
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
-//FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING
+type OSM struct{}
 
-func GrabAddressFromOSM(query string) (Address, error) {
+func (o OSM) AcquireAddress(query string) (Address, error) {
 
 	//create the url
 	const endpoint = "https://nominatim.openstreetmap.org/search"

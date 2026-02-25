@@ -1,8 +1,10 @@
 package maps
 
-//template for map data providers
+import (
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
+)
+
+// template for map data providers
 type Provider interface {
-
-	//getTravelTime(origin,destination) get edge between 2 addresses
-
+	AcquireAddress(query string) (Address, error)
 }

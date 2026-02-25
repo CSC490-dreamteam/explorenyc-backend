@@ -12,6 +12,8 @@ import (
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
+type GoogleMaps struct{}
+
 //FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING
 
 func GetGoogleMapsRouteExportURL(path Path) string {
@@ -36,7 +38,7 @@ func GetGoogleMapsRouteExportURL(path Path) string {
 
 }
 
-func GrabAddressFromGoogleMaps(query string) (Address, error) {
+func (g GoogleMaps) AcquireAddress(query string) (Address, error) {
 	const endpoint = "https://places.googleapis.com/v1/places:searchText"
 	apiKey := os.Getenv("GOOGLE_MAPS_PLACES_API_KEY")
 
