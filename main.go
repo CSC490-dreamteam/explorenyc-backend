@@ -5,6 +5,7 @@ import (
 
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
+	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 		"macy's new york ny",
 	}
 
-	var stops []pathfinders.Stop
+	var stops []Stop
 
 	//iterate through all given locations
 	for _, location := range locations {
@@ -41,8 +42,8 @@ func main() {
 			addr.Zip,
 		)
 
-		//add stops to slice with coords
-		stops = append(stops, pathfinders.Stop{
+		//add stop to slice with coords from the API
+		stops = append(stops, Stop{
 			Name:      location,
 			Latitude:  addr.Lat,
 			Longitude: addr.Lon,
