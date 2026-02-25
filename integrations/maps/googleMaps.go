@@ -9,12 +9,12 @@ import (
 	"os"
 	"strings"
 
-	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
 //FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING
 
-func GetGoogleMapsRouteExportURL(path pathfinders.Path) string {
+func GetGoogleMapsRouteExportURL(path Path) string {
 
 	//check if stops slice is empty
 	if len(path.StopOrder) == 0 {

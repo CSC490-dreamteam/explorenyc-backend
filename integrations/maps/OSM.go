@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	"strings"
+
 )
 
 //FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING

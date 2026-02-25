@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
 )
 
@@ -45,12 +46,16 @@ func main() {
 
 	router := gin.Default()
 
+
+	var stops []Stop
+
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{"*"}, //temp cors fix
 		AllowMethods: []string{"POST", "GET", "OPTIONS"},
 		AllowHeaders: []string{"Content-Type", "X-API-Key"},
 	}))
 	router.Use(apiKeyAuth())
+
 
 	router.POST("/GenerateRoute", func(context *gin.Context) {
 		var req RouteRequest
@@ -59,8 +64,26 @@ func main() {
 			return
 		}
 
-		var stops []pathfinders.Stop
+
+		//print address info
+		fmt.Printf("%s:\n%s, %s, %s %s\n\n",
+			location,
+			addr.Street,
+			addr.City,
+			addr.State,
+			addr.Zip,
+		)
+
+		//add stop to slice with coords from the API
+		stops = append(stops, Stop{
+			Name:      location,
+			Latitude:  addr.Lat,
+			Longitude: addr.Lon,
+		})
+	}
+		var stops Stop
 		var errors []string
+
 
 		for _, location := range req.Locations {
 			//addr, err := maps.GrabAddressFromOSM(location)
