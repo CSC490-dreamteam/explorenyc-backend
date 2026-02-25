@@ -25,11 +25,14 @@ func TestGrabAddressFromGoogleMaps(t *testing.T) {
 		"350 5th Ave, New York, NY",
 	}
 
+	var mapProvider maps.Provider = maps.GoogleMaps{}
+
 	for _, q := range queries {
 		fmt.Println("---")
 		fmt.Printf("Query: %s\n", q)
 
-		addr, err := maps.GrabAddressFromGoogleMaps(q)
+		addr, err := mapProvider.AcquireAddress(q)
+
 		if err != nil {
 			fmt.Printf("  ERROR: %v\n", err)
 			continue
@@ -49,6 +52,7 @@ func TestGrabAddressFromGoogleMaps(t *testing.T) {
 func TestExportGoogleURL(t *testing.T) {
 
 	var stops []Stop
+	var mapProvider maps.Provider = maps.GoogleMaps{}
 
 	err := godotenv.Load()
 	if err != nil {
@@ -66,7 +70,7 @@ func TestExportGoogleURL(t *testing.T) {
 		fmt.Println("---")
 		fmt.Printf("Query: %s\n", q)
 
-		addr, err := maps.GrabAddressFromGoogleMaps(q)
+		addr, err := mapProvider.AcquireAddress(q)
 		if err != nil {
 			fmt.Printf("  ERROR: %v\n", err)
 			continue

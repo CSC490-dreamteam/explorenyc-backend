@@ -62,10 +62,12 @@ func main() {
 
 		var stops []Stop
 		var errors []string
+		var mapProvider maps.Provider = maps.GoogleMaps{}
 
 		for _, location := range req.Locations {
-			//addr, err := maps.GrabAddressFromOSM(location)
-			addr, err := maps.GrabAddressFromGoogleMaps(location)
+
+			addr, err := mapProvider.AcquireAddress(location)
+
 			if err != nil {
 				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location, err))
 				continue
