@@ -6,8 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
+	"strings"
+
 )
 
 //FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING
@@ -88,13 +89,14 @@ func GrabAddressFromOSM(query string) (Address, error) {
 	street += result.Address.Road
 
 	return Address{
-		Lat:         lat,
-		Lon:         lon,
-		Street:      street,
-		City:        result.Address.City,
-		State:       result.Address.State,
-		Zip:         result.Address.Postcode,
-		DisplayName: result.DisplayName,
+		Lat:              lat,
+		Lon:              lon,
+		Street:           street,
+		City:             result.Address.City,
+		State:            result.Address.State,
+		Zip:              result.Address.Postcode,
+		PlaceName:        strings.Split(result.DisplayName, ",")[0],
+		FormattedAddress: result.DisplayName,
 	}, nil
 
 }
