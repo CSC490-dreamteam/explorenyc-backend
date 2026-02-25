@@ -12,11 +12,12 @@ type Path struct {
 }
 
 type Address struct {
-	Lat         float64
-	Lon         float64
-	Street      string
-	City        string
-	State       string
-	Zip         string
-	DisplayName string
+	Lat              float64
+	Lon              float64
+	Street           string
+	City             string
+	State            string
+	Zip              string
+	PlaceName        string
+	FormattedAddress string
 }

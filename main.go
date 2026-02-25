@@ -46,16 +46,12 @@ func main() {
 
 	router := gin.Default()
 
-
-	var stops []Stop
-
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{"*"}, //temp cors fix
 		AllowMethods: []string{"POST", "GET", "OPTIONS"},
 		AllowHeaders: []string{"Content-Type", "X-API-Key"},
 	}))
 	router.Use(apiKeyAuth())
-
 
 	router.POST("/GenerateRoute", func(context *gin.Context) {
 		var req RouteRequest
@@ -64,26 +60,8 @@ func main() {
 			return
 		}
 
-
-		//print address info
-		fmt.Printf("%s:\n%s, %s, %s %s\n\n",
-			location,
-			addr.Street,
-			addr.City,
-			addr.State,
-			addr.Zip,
-		)
-
-		//add stop to slice with coords from the API
-		stops = append(stops, Stop{
-			Name:      location,
-			Latitude:  addr.Lat,
-			Longitude: addr.Lon,
-		})
-	}
-		var stops Stop
+		var stops []Stop
 		var errors []string
-
 
 		for _, location := range req.Locations {
 			//addr, err := maps.GrabAddressFromOSM(location)
@@ -92,7 +70,7 @@ func main() {
 				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location, err))
 				continue
 			}
-			stops = append(stops, pathfinders.Stop{
+			stops = append(stops, Stop{
 				Name:      location,
 				Latitude:  addr.Lat,
 				Longitude: addr.Lon,

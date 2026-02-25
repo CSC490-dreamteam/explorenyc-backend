@@ -8,6 +8,7 @@ import (
 	"github.com/joho/godotenv"
 
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
 )
 
@@ -47,7 +48,7 @@ func TestGrabAddressFromGoogleMaps(t *testing.T) {
 
 func TestExportGoogleURL(t *testing.T) {
 
-	var stops []pathfinders.Stop
+	var stops []Stop
 
 	err := godotenv.Load()
 	if err != nil {
@@ -80,7 +81,7 @@ func TestExportGoogleURL(t *testing.T) {
 		fmt.Printf("  Lat:              %f\n", addr.Lat)
 		fmt.Printf("  Lon:              %f\n", addr.Lon)
 
-		stops = append(stops, pathfinders.Stop{
+		stops = append(stops, Stop{
 			Name:      addr.PlaceName, // Use the resolved name
 			Latitude:  addr.Lat,
 			Longitude: addr.Lon,
