@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
-	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
 func main() {

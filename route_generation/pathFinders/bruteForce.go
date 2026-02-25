@@ -1,21 +1,14 @@
 package pathfinders
 
-import "math"
+import (
+	"math"
+
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
+)
 
 //possible algo
 
-type Stop struct {
-	Name      string
-	Latitude  float64
-	Longitude float64
-}
-
-type Path struct {
-	StopOrder []Stop
-	TotalTime int //in seconds or soemthing?
-}
-
-//bruteforce path calculator with travel time
+// bruteforce path calculator with travel time
 func BruteForcePathFinder(stops []Stop, travelTimeMatrix [][]int) Path {
 	//do brute force algo to find best path
 
@@ -56,7 +49,7 @@ func BruteForcePathFinder(stops []Stop, travelTimeMatrix [][]int) Path {
 	}
 }
 
-//brute forces a calculation of th ebest route based on travel distance regardless of traffic/ transit time
+// brute forces a calculation of th ebest route based on travel distance regardless of traffic/ transit time
 func BruteForcePathFinderWithDistance(stops []Stop) Path {
 
 	//build distance matrix
@@ -110,14 +103,14 @@ func BruteForcePathFinderWithDistance(stops []Stop) Path {
 	}
 }
 
-//straight line distance between 2 points
+// straight line distance between 2 points
 func calculateEdgeDistance(lat1, lon1, lat2, lon2 float64) float64 {
 	latDiff := lat2 - lat1
 	lonDiff := lon2 - lon1
 	return math.Sqrt(latDiff*latDiff + lonDiff*lonDiff)
 }
 
-//calc length of an entire route given the order of stops and the distance matrix
+// calc length of an entire route given the order of stops and the distance matrix
 func calculatePathDistance(order []int, distanceMatrix [][]float64) float64 {
 	total := 0.0
 	for i := 0; i < len(order)-1; i++ {
@@ -128,7 +121,7 @@ func calculatePathDistance(order []int, distanceMatrix [][]float64) float64 {
 	return total
 }
 
-//takes a list of numbers and outputs the different permutations of them
+// takes a list of numbers and outputs the different permutations of them
 func findPermutations(nums []int) [][]int {
 	var result [][]int
 	var backtrack func(start int)
@@ -151,7 +144,7 @@ func findPermutations(nums []int) [][]int {
 	return result
 }
 
-//calculates the total travel time for a sequence of given stops
+// calculates the total travel time for a sequence of given stops
 func calculatePathTime(order []int, travelTimeMatrix [][]int) int {
 	totalTime := 0
 	for i := 0; i < len(order)-1; i++ {

@@ -10,16 +10,6 @@ import (
 
 //FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING
 
-type Address struct {
-	Lat         float64
-	Lon         float64
-	Street      string
-	City        string
-	State       string
-	Zip         string
-	DisplayName string
-}
-
 func GrabAddressFromOSM(query string) (Address, error) {
 
 	//create the url
