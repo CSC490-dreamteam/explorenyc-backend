@@ -8,7 +8,7 @@ type Stop struct {
 
 type Path struct {
 	StopOrder []Stop
-	TotalTime int //in seconds or soemthing?
+	TotalTime int //in seconds or something?
 }
 
 type Address struct {
@@ -18,6 +18,12 @@ type Address struct {
 	City             string
 	State            string
 	Zip              string
-	PlaceName        string
-	FormattedAddress string
+	PlaceName        string // "Empire State Building"
+	FormattedAddress string // "Empire State Building, 20 W 34th St., New York, NY 10001"
+}
+
+type EdgeWeights struct {
+	Nodes     []Stop
+	Durations [][]int //travel times both ways: A -> B as well as B -> A, since they may differ
+	Distances [][]int //distances both ways: A -> B as well as B -> A, since they may differ
 }
