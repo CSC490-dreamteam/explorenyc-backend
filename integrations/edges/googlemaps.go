@@ -53,7 +53,6 @@ func (g GoogleMaps) acquireTravelTime(stops []Stop, transitMode string) (EdgeWei
 		body["routingPreference"] = "TRAFFIC_AWARE"
 	case "subway":
 		body["travelMode"] = "TRANSIT"
-		body["routingPreference"] = "TRAFFIC_AWARE"
 		body["transitPreferences"] = map[string]interface{}{
 			"allowedTravelModes": []string{"SUBWAY"},
 			"routingPreference":  "FEWER_TRANSFERS",
@@ -87,6 +86,9 @@ func (g GoogleMaps) acquireTravelTime(stops []Stop, transitMode string) (EdgeWei
 		return EdgeWeights{}, fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	//uncomment to print the raw api body
+	//fmt.Println("RAW RESPONSE:", string(responseBody))
+
 	if response.StatusCode != http.StatusOK {
 		return EdgeWeights{}, fmt.Errorf("non-OK HTTP status: %s", response.Status)
 	}
@@ -115,6 +117,17 @@ func (g GoogleMaps) acquireTravelTime(stops []Stop, transitMode string) (EdgeWei
 
 	//fill matrices with api response data
 	for _, edge := range edges {
+
+		//no route found from Google's end
+		if edge.Condition == "ROUTE_NOT_FOUND" {
+			continue
+		}
+
+		if edge.Duration == "" {
+			return EdgeWeights{}, fmt.Errorf("empty duration for edge [%d][%d] with condition: %s",
+				edge.OriginIndex, edge.DestinationIndex, edge.Condition)
+		}
+
 		seconds, err := strconv.Atoi(strings.TrimSuffix(edge.Duration, "s"))
 		if err != nil {
 			return EdgeWeights{}, fmt.Errorf("failed to parse duration for edge: %v", err)
