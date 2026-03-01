@@ -1,3 +1,0 @@
-package pathfinders
-
-//possible algo
