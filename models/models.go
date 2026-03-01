@@ -27,3 +27,76 @@ type EdgeWeights struct {
 	Durations [][]int //travel times both ways: A -> B as well as B -> A, since they may differ
 	Distances [][]int //distances both ways: A -> B as well as B -> A, since they may differ
 }
+
+///////////////
+// solver types
+///////////////
+
+type Priority int
+
+const (
+	Mandatory Priority = iota //iota means the types are automatically assigned values starting from 0, so Mandatory = 0,  MustSee = 2, Optional = 1
+	MustSee
+	Optional
+)
+
+type RouteVariant int
+
+const (
+	TimeOptimized RouteVariant = iota
+	CostOptimized
+	Balanced
+)
+
+type SolverNode struct {
+	ID                string
+	Name              string
+	Latitude          float64
+	Longitude         float64
+	DurationInMinutes int64
+	TimeWindowStart   int64
+	TimeWindowEnd     int64
+	Priority          Priority
+	DropPenalty       int64
+	CandidateGroupID  string
+}
+
+// a group of stops where exactly one is picked by the route to be added in
+// i.e Nicks algo suggests 5 taco places for lunch, one of these is selected to be added in the route
+type CandidateGroup struct {
+	ID          string
+	StopIndices []int
+}
+
+type SolverInput struct {
+	Nodes                 []SolverNode
+	StartIndex            int
+	EndIndex              int
+	DayStartTimeInMinutes int64
+	DayEndTimeInMinutes   int64
+	BudgetInCents         int64
+	TravelTimeMatrix      [][]int64
+	CostMatrix            [][]int64
+	CandidateGroups       []CandidateGroup
+	RouteVariant          RouteVariant
+	//maybe these 3 are overkill idk
+	Precedences   [][2]int //list of pairs of stop indices where the first must come before the second in the route
+	ForcedEdges   [][2]int //list of pairs of stop indices where the first must be immediately followed by the second in the route
+	ExcludedStops []int    //user rejected stops
+}
+
+// segment of a route
+type RouteEntry struct {
+	NodeIndex              int
+	ArrivalTimeInMinutes   int64
+	DepartureTimeInMinutes int64
+}
+
+type SolverOutput struct {
+	Route              []RouteEntry
+	DroppedStops       []int
+	TotalTimeInMinutes int64
+	TotalCostInCents   int64
+	Score              int64
+	HasSolution        bool
+}

@@ -12,7 +12,7 @@ import (
 
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
-	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
+	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
 )
 
 type RouteRequest struct {
