@@ -39,12 +39,32 @@ const (
 )
 
 type ItineraryEntry struct {
-	Address                Address
-	ArrivalTimeInMinutes   int64
-	DepartureTimeInMinutes int64
-	TransportToNextStop    TransitType
-	TravelTimeToNextStop   int64
-	TransitCost            int64
+	Name                    string //incase we call it like "Lunch" or "Museum" instead of the actual name of the stop
+	Address                 Address
+	ArrivalTimeInMinutes    int64 //clock time you get there, written as minutes from midnight, so 600 is 10 AM
+	DepartureTimeInMinutes  int64 //clock time you leave, written as minutes from midnight, so 600 is 10 AM
+	DurationAtStopInMinutes int64 //how long you spend at the stop, so DepartureTime - ArrivalTime
+	TransportToNextStop     TransitType
+	TravelTimeToNextStop    int64
+	TransitCost             int64
+}
+
+type Itinerary struct {
+	Entries                 []ItineraryEntry
+	DroppedStops            []Address
+	TotalTimeInMinutes      int64
+	TotalTransitCostInCents int64
+	TotalCostInCents        int64
+	StartTimeInMinutes      int64
+	EndTimeInMinutes        int64
+}
+
+type PostProcessorInput struct {
+	SolverInput       SolverInput
+	SolverOutput      SolverOutput
+	StopMap           map[int]Address
+	TransitTypeMatrix [][]TransitType
+	TransitCostMatrix [][]int64
 }
 
 //////////////////
@@ -55,7 +75,7 @@ type Priority int
 
 const (
 	Mandatory Priority = iota //iota means the types are automatically assigned values starting from 0, so Mandatory = 0,  MustSee = 2, Optional = 1
-	WantToSee
+	WantToSee                 //higher priority but still optional
 	Optional
 )
 
