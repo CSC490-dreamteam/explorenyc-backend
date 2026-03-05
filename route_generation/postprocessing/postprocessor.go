@@ -26,10 +26,12 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 		node := input.Nodes[routeEntry.NodeIndex]
 		nodeAddress := stopmap[routeEntry.NodeIndex]
 
+		//defaults to 0 values if at the last stop
 		var travelTimeToNext int64
 		var transitModeToNext TransitType
 		var travelCostToNext int64
 
+		//if not at the last stop, get info about next stop
 		if i < len(output.Route)-1 {
 			nextEntry := output.Route[i+1]
 			fromIdx := routeEntry.NodeIndex
@@ -39,7 +41,7 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 			travelCostToNext = transitcostmatrix[fromIdx][toIdx]
 		}
 
-		newEntry := ItineraryEntry{
+		newEntry := ItineraryEntry{ //make the entry
 			Name:                    node.Name,
 			Address:                 nodeAddress,
 			ArrivalTimeInMinutes:    routeEntry.ArrivalTimeInMinutes,
@@ -54,7 +56,7 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 
 	//MAKE STOPMAP THAT MAPS STOPS BY index to THEIR ADDRESS in preprocessor
 
-	return Itinerary{
+	return Itinerary{ //return big boy official JSON
 		Entries:                 entries,
 		DroppedStops:            ProcessDroppedStops(stopmap, output.DroppedStops),
 		TotalTransitCostInCents: output.TotalCostInCents,
