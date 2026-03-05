@@ -28,6 +28,25 @@ type EdgeWeights struct {
 	Distances [][]int //distances both ways: A -> B as well as B -> A, since they may differ
 }
 
+type TransitType int
+
+const (
+	Walking TransitType = iota
+	Car
+	Subway
+	//Biking TODO?
+	//Uber TODO
+)
+
+type ItineraryEntry struct {
+	Address                Address
+	ArrivalTimeInMinutes   int64
+	DepartureTimeInMinutes int64
+	TransportToNextStop    TransitType
+	TravelTimeToNextStop   int64
+	TransitCost            int64
+}
+
 //////////////////
 // solver types //
 //////////////////
