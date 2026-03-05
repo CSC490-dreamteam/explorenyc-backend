@@ -72,15 +72,15 @@ type CombineConfig struct {
 	CarCostPerKilometerCents int
 }
 
-///////////////
-// solver types
-///////////////
+//////////////////
+// solver types //
+//////////////////
 
 type Priority int
 
 const (
 	Mandatory Priority = iota //iota means the types are automatically assigned values starting from 0, so Mandatory = 0,  MustSee = 2, Optional = 1
-	MustSee
+	WantToSee
 	Optional
 )
 
