@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"text/template/parse"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"github.com/joho/godotenv"
 
+	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/edges"
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
@@ -53,6 +57,7 @@ func main() {
 	}))
 	router.Use(apiKeyAuth())
 
+	//old brute force google routing endpoint
 	router.POST("/GenerateRoute", func(context *gin.Context) {
 		var req RouteRequest
 		if err := context.ShouldBindJSON(&req); err != nil {
@@ -88,6 +93,125 @@ func main() {
 		})
 	})
 
+	router.POST("/GenerateItinerary", func(context *gin.Context) {
+		//get json off frontend
+		var ItineraryReq ItineraryRequest
+		if err := context.ShouldBindJSON(&ItineraryReq); err != nil {
+			context.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+			return
+		}
+
+		//parse frontend json
+
+		
+		var stops []Address
+		var errors []string
+		var mapProvider maps.Provider = maps.GoogleMaps{}
+
+		//get location data for each stop requested
+		for _, location := range ItineraryReq.Stops {
+
+			addr, err := mapProvider.AcquireAddress(location.Location)
+
+			if err != nil {
+				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location, err))
+				continue
+			}
+			stops = append(stops, Address{
+				Lat:              addr.Lat,
+				Lon:              addr.Lon,
+				Street:           addr.Street,
+				City:             addr.City,
+				State:            addr.State,
+				Zip:              addr.Zip,
+				PlaceName:        addr.PlaceName,
+				FormattedAddress: addr.FormattedAddress,
+			})
+		}
+
+		//get edges between stops//
+
+		//setup data providers
+		walkingDataProvider := edges.GoogleMaps{}
+		carDataProvider := edges.GoogleMaps{}
+		subwayDataProvider := edges.GoogleMaps{}
+
+		//get edge weights for each transit mode
+		walkingEdges, err := walkingDataProvider.AcquireWalkingTravelTime(stops)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to acquire walking travel times: %v", err))
+		}
+		carEdges, err := carDataProvider.AcquireCarTravelTime(stops)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to acquire car travel times: %v", err))
+		}
+		subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(stops)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
+		}
+
+		//combine weights using david's part
+		//TODO
+		//test with just walking for now
+
+
+
+		//create python payload
+
+		var solverNodes []SolverNode
+
+		for i, stop := range stops {
+			//todo create string id or osmething
+
+			var timeWindowStart int64
+			var timeWindowEnd int64
+
+			//set time window for that specific node
+			if stop.TimePreference != nil {
+				timeWindowStart = parseTimeIntoMinutes(*stop.TimePreference)
+				timeWindowEnd = timeWindowStart + 90 //PLACEHOLDER, just gives 1.5 hr time window for now
+			}
+
+			//setup priority and drop penalty based on whether stop is mandatory or not
+			prio := Optional
+			if stop.Mandatory {
+				prio = Mandatory
+			}
+
+			var dropPenalty int64 = 0
+			switch priority {
+			case Mandatory:
+				dropPenalty = 0  //undroppable
+			case WantToSee:
+				dropPenalty = 5000
+			case Optional:
+				dropPenalty = 5000
+			}
+			
+
+			node := SolverNode{
+				ID:       fmt.Sprintf("%d", i),
+				Stop:     stop.PlaceName,
+				Latitude:      stop.Lat,
+				Longitude:      stop.Lon,
+				DurationInMinutes: 90, //PLACEHOLDER
+				TimeWindowStart: stop.TimePreference, //fix?
+				TimeWindowEnd: stop.TimePreference+90, //fix
+				Priority: stop.Priority,
+				DropPenalty: ,
+			}
+
+		//send python payload
+
+		//process python response with post processor
+
+
+
+
+		//send out the itinerary to the frontend
+		context.JSON(http.StatusOK, Itinerary{})
+	})
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -95,3 +219,21 @@ func main() {
 	router.Run(":" + port)
 
 }
+
+// turn 09:00 AM to 540
+func parseTimeIntoMinutes(timeStr string) (int64, error) {
+	timeStr = strings.TrimSpace(timeStr)
+	layouts := []string{"3:04 PM", "15:04", "15:04:05"}
+
+	var time time.Time
+	var err error
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, timeStr); err == nil {
+			return int64(t.Hour()*60 + t.Minute()), nil
+		}
+	}
+
+	return 0, fmt.Errorf("invalid time format: %s", timeStr)
+
+}
+	
