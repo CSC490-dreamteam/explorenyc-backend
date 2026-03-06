@@ -70,6 +70,8 @@ type CombineConfig struct {
 	CarBaseFareCents         int
 	CarCostPerMinuteCents    int
 	CarCostPerKilometerCents int
+	Durations                [][]int //travel times both ways: A -> B as well as B -> A, since they may differ
+	Distances                [][]int //distances both ways: A -> B as well as B -> A, since they may differ
 }
 
 type TransitType int
@@ -101,6 +103,22 @@ type Itinerary struct {
 	TotalCostInCents        int64
 	StartTimeInMinutes      int64
 	EndTimeInMinutes        int64
+}
+
+type StopRequest struct {
+	Location       string  `json:"location"`
+	Mandatory      bool    `json:"mandatory"`
+	TimePreference *string `json:"timePreference"` //pointer so it can be null?
+}
+
+type ItineraryRequest struct {
+	TripName      string        `json:"tripName"`
+	Date          string        `json:"date"`
+	EntryTime     string        `json:"entryTime"` //09:00 AM
+	ExitTime      string        `json:"exitTime"`  //09:00 PM
+	StartLocation string        `json:"startLocation"`
+	EndLocation   *string       `json:"endLocation"`
+	Stops         []StopRequest `json:"stops"`
 }
 
 type PostProcessorInput struct {

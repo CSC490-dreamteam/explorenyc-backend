@@ -15,8 +15,20 @@ import (
 
 type GoogleMaps struct{}
 
+func (g GoogleMaps) AcquireWalkingTravelTime(stops []Address) (EdgeWeights, error) {
+	return g.acquireTravelTime(stops, "walking")
+}
+
+func (g GoogleMaps) AcquireCarTravelTime(stops []Address) (EdgeWeights, error) {
+	return g.acquireTravelTime(stops, "car")
+}
+
+func (g GoogleMaps) AcquireSubwayTravelTime(stops []Address) (EdgeWeights, error) {
+	return g.acquireTravelTime(stops, "subway")
+}
+
 // generic function to get travel time for any transit mode, API is mostly the same with tiny diffs
-func (g GoogleMaps) acquireTravelTime(stops []Stop, transitMode string) (EdgeWeights, error) {
+func (g GoogleMaps) acquireTravelTime(stops []Address, transitMode string) (EdgeWeights, error) {
 	const endpoint = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
 	apiKey := os.Getenv("GOOGLE_MAPS_ROUTES_API_KEY")
 
@@ -31,8 +43,8 @@ func (g GoogleMaps) acquireTravelTime(stops []Stop, transitMode string) (EdgeWei
 			"waypoint": map[string]interface{}{
 				"location": map[string]interface{}{
 					"latLng": map[string]float64{
-						"latitude":  stop.Latitude,
-						"longitude": stop.Longitude,
+						"latitude":  stop.Lat,
+						"longitude": stop.Lon,
 					},
 				},
 			},
@@ -141,16 +153,4 @@ func (g GoogleMaps) acquireTravelTime(stops []Stop, transitMode string) (EdgeWei
 		Distances: distances,
 		Durations: durations,
 	}, nil
-}
-
-func (g GoogleMaps) AcquireWalkingTravelTime(stops []Stop) (EdgeWeights, error) {
-	return g.acquireTravelTime(stops, "walking")
-}
-
-func (g GoogleMaps) AcquireCarTravelTime(stops []Stop) (EdgeWeights, error) {
-	return g.acquireTravelTime(stops, "car")
-}
-
-func (g GoogleMaps) AcquireSubwayTravelTime(stops []Stop) (EdgeWeights, error) {
-	return g.acquireTravelTime(stops, "subway")
 }
