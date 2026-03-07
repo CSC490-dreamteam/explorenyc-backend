@@ -133,6 +133,11 @@ func TestLocalGenerateItinerary(t *testing.T) {
 				TimePreference: nil,
 				Mandatory:      true,
 			},
+			{
+				Location:       "Holcombe Rucker Park",
+				TimePreference: nil,
+				Mandatory:      true,
+			},
 		},
 	}
 

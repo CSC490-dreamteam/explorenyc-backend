@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/edges"
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
+	matrixAggregator "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/matrixaggregator"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
 	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/postprocessing"
 )
@@ -156,54 +156,67 @@ func main() {
 
 		//setup edge providers
 		walkingDataProvider := edges.GoogleMaps{}
-		// carDataProvider := edges.GoogleMaps{}
-		// subwayDataProvider := edges.GoogleMaps{}
+		carDataProvider := edges.GoogleMaps{}
+		subwayDataProvider := edges.GoogleMaps{}
 
 		//get edge weights for each transit mode
 		walkingEdges, err := walkingDataProvider.AcquireWalkingTravelTime(places)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("failed to acquire walking travel times: %v", err))
 		}
-		// carEdges, err := carDataProvider.AcquireCarTravelTime(places)
-		// if err != nil {
-		// 	errors = append(errors, fmt.Sprintf("failed to acquire car travel times: %v", err))
-		// }
-		// subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(places)
-		// if err != nil {
-		// 	errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
-		// }
+		carEdges, err := carDataProvider.AcquireCarTravelTime(places)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to acquire car travel times: %v", err))
+		}
+		subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(places)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
+		}
 
 		//combine weights using david's part
-		//TODO
 
-		//optimizedMatrices := CombineBestEdges(walkingEdges, carEdges, subwayEdges) //placeholder for now, just uses walking edges
-
-		walkingMinutes := make([][]int, len(walkingEdges.Durations))
-		for i := range walkingEdges.Durations {
-			walkingMinutes[i] = make([]int, len(walkingEdges.Durations[i]))
-			for j := range walkingEdges.Durations[i] {
-				walkingMinutes[i][j] = walkingEdges.Durations[i][j] / 60
-			}
-		}
-		optimizedMatrices := CombinedMatrices{
-			TimeMinutes: walkingMinutes,                     //placeholder, just uses walking times for now
-			CostDollars: make([][]int, len(places)),         //placeholder, just uses 0s for now since walking is free
-			Mode:        make([][]TransitType, len(places)), //placeholder, just uses "WALK" for now
+		transitconfig := CombineConfig{
+			TimeValueCentsPerMinute:  25,
+			WalkingMaxMinutes:        25,
+			WalkingMaxDistanceMeters: 2000,
+			SubwayFlatFareCents:      300,
+			CarBaseFareCents:         250,
+			CarCostPerMinuteCents:    12,
+			CarCostPerKilometerCents: 50,
 		}
 
-		for i := range optimizedMatrices.CostDollars {
-			optimizedMatrices.CostDollars[i] = make([]int, len(places))
-			for j := range optimizedMatrices.CostDollars[i] {
-				optimizedMatrices.CostDollars[i][j] = 50 + rand.Intn(375)
-			}
+		optimizedMatrices, err := matrixAggregator.CombineBestEdges(walkingEdges, carEdges, subwayEdges, transitconfig)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("failed to combine best edges: %v", err))
 		}
 
-		for i := range optimizedMatrices.Mode {
-			optimizedMatrices.Mode[i] = make([]TransitType, len(places))
-			for j := range optimizedMatrices.Mode[i] {
-				optimizedMatrices.Mode[i][j] = Walking
-			}
-		}
+		// walkingMinutes := make([][]int, len(walkingEdges.Durations))
+		// for i := range walkingEdges.Durations {
+		// 	walkingMinutes[i] = make([]int, len(walkingEdges.Durations[i]))
+		// 	for j := range walkingEdges.Durations[i] {
+		// 		walkingMinutes[i][j] = walkingEdges.Durations[i][j] / 60
+		// 	}
+		// }
+
+		// optimizedMatrices := CombinedMatrices{
+		// 	TimeMinutes: walkingMinutes,                     //placeholder, just uses walking times for now
+		// 	CostCents: make([][]int, len(places)),         //placeholder, just uses 0s for now since walking is free
+		// 	Mode:        make([][]string, len(places)), //placeholder, just uses "WALK" for now
+		// }
+
+		// for i := range optimizedMatrices.CostCents {
+		// 	optimizedMatrices.CostCents[i] = make([]int, len(places))
+		// 	for j := range optimizedMatrices.CostCents[i] {
+		// 		optimizedMatrices.CostCents[i][j] = 50 + rand.Intn(375)
+		// 	}
+		// }
+
+		// for i := range optimizedMatrices.Mode {
+		// 	optimizedMatrices.Mode[i] = make([]string, len(places))
+		// 	for j := range optimizedMatrices.Mode[i] {
+		// 		optimizedMatrices.Mode[i][j] = Walking
+		// 	}
+		// }
 
 		//create python payload
 		var solverNodes []SolverNode
@@ -275,7 +288,7 @@ func main() {
 			DayEndTimeInMinutes:   parseTimeIntoMinutes(ItineraryReq.ExitTime),
 			BudgetInCents:         5000,                          //PLACEHOLDER, $50 budget for transit costs
 			TravelTimeMatrix:      optimizedMatrices.TimeMinutes, //TODO david
-			CostMatrix:            optimizedMatrices.CostDollars, //TODO placeholder, wait for david
+			CostMatrix:            optimizedMatrices.CostCents,   //TODO placeholder, wait for david
 			CandidateGroups:       []CandidateGroup{},            //TODO wait on nick
 			RouteVariant:          Balanced,
 			//empty so python doesnt get mad
@@ -327,13 +340,21 @@ func main() {
 
 		fmt.Printf("Solver output: %+v\n", solverOutput)
 
+		//TODO AMKE STRING TO TRANSIT TYPE ADAPTER
+
+		adaptedtransitTypeMatrix, err := ConvertModeMatrix(optimizedMatrices.Mode)
+		if err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to convert mode matrix: %v", err)})
+			return
+		}
+
 		//process python response with post processor
 		PostProcessorInput := PostProcessorInput{
 			SolverInput:       solverInput,
-			SolverOutput:      solverOutput,                  //TODO get real output from python
-			StopMap:           make(map[int]Address),         //TODO make stopmap that maps stop indices to their address for post processor
-			TransitTypeMatrix: optimizedMatrices.Mode,        //TODO get from david
-			TransitCostMatrix: optimizedMatrices.CostDollars, //TODO get from david
+			SolverOutput:      solverOutput,                //TODO get real output from python
+			StopMap:           make(map[int]Address),       //TODO make stopmap that maps stop indices to their address for post processor
+			TransitTypeMatrix: adaptedtransitTypeMatrix,    //TODO get from david
+			TransitCostMatrix: optimizedMatrices.CostCents, //TODO get from david
 		}
 
 		itinerary, err := postprocessing.ProcessRouteResponse(PostProcessorInput)
@@ -364,4 +385,40 @@ func parseTimeIntoMinutes(timeStr string) int {
 
 	fmt.Errorf("invalid time format: %s", timeStr)
 	return -1
+}
+
+func ConvertModeMatrix(strMatrix [][]string) ([][]TransitType, error) {
+	if len(strMatrix) == 0 {
+		return make([][]TransitType, 0), nil
+	}
+
+	result := make([][]TransitType, len(strMatrix))
+
+	for i, row := range strMatrix {
+		result[i] = make([]TransitType, len(row))
+
+		for j, val := range row {
+			tt := parseTransitType(val)
+
+			result[i][j] = tt
+		}
+	}
+
+	return result, nil
+}
+
+func parseTransitType(s string) TransitType {
+	switch s {
+	case "WALKING":
+		return Walking
+	case "CAR":
+		return Car
+	case "SUBWAY":
+		return Subway
+	case "UNREACHABLE", "SELF":
+		// Defaulting to Walking per your temporary requirement
+		return Walking
+	default:
+		return 0
+	}
 }

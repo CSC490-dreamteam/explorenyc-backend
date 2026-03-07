@@ -310,7 +310,9 @@ func evaluateEdgeForMode(
 	mode transportModeInput,
 	combineConfig CombineConfig,
 ) evaluatedEdge {
-	durationMinutes := mode.edgeWeights.Durations[fromStopIndex][toStopIndex]
+	durationSeconds := mode.edgeWeights.Durations[fromStopIndex][toStopIndex]
+	durationMinutes := secondsToMinutesCeil(durationSeconds)
+
 	distanceMeters := mode.edgeWeights.Distances[fromStopIndex][toStopIndex]
 
 	if !isSaneTravelValue(durationMinutes) || !isSaneTravelValue(distanceMeters) {
@@ -439,4 +441,8 @@ func calculateCarCostCents(
 // isSaneTravelValue rejects impossible matrix values coming from upstream data.
 func isSaneTravelValue(value int) bool {
 	return value >= 0
+}
+
+func secondsToMinutesCeil(seconds int) int {
+	return (seconds + 59) / 60
 }
