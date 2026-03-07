@@ -223,7 +223,7 @@ type SolverNode struct {
 	DurationInMinutes int      `json:"duration_in_minutes"`
 	TimeWindowStart   int      `json:"time_window_start"`
 	TimeWindowEnd     int      `json:"time_window_end"`
-	Priority          Priority `json:"priority"`
+	Priority          Priority `json:"Priority"`
 	DropPenalty       int      `json:"drop_penalty"`
 	CandidateGroupID  string   `json:"candidate_group_id,omitempty"`
 }

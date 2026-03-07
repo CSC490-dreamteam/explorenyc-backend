@@ -123,6 +123,14 @@ func main() {
 		var errors []string
 		var mapProvider maps.Provider = maps.GoogleMaps{}
 
+		//insert start location
+		startAddr, err := mapProvider.AcquireAddress(ItineraryReq.StartLocation)
+		if err != nil {
+			context.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("could not resolve start location '%s': %v", ItineraryReq.StartLocation, err)})
+			return
+		}
+		places = append(places, startAddr)
+
 		//get location data for each stop requested
 		for _, location := range ItineraryReq.Stops {
 
@@ -170,21 +178,28 @@ func main() {
 
 		//optimizedMatrices := CombineBestEdges(walkingEdges, carEdges, subwayEdges) //placeholder for now, just uses walking edges
 
+		walkingMinutes := make([][]int, len(walkingEdges.Durations))
+		for i := range walkingEdges.Durations {
+			walkingMinutes[i] = make([]int, len(walkingEdges.Durations[i]))
+			for j := range walkingEdges.Durations[i] {
+				walkingMinutes[i][j] = walkingEdges.Durations[i][j] / 60
+			}
+		}
 		optimizedMatrices := CombinedMatrices{
-			TimeMinutes: walkingEdges.Durations,             //placeholder, just uses walking times for now
+			TimeMinutes: walkingMinutes,                     //placeholder, just uses walking times for now
 			CostDollars: make([][]int, len(places)),         //placeholder, just uses 0s for now since walking is free
 			Mode:        make([][]TransitType, len(places)), //placeholder, just uses "WALK" for now
 		}
 
 		for i := range optimizedMatrices.CostDollars {
-			optimizedMatrices.CostDollars[i] = make([]int, len(optimizedMatrices.CostDollars[i]))
+			optimizedMatrices.CostDollars[i] = make([]int, len(places))
 			for j := range optimizedMatrices.CostDollars[i] {
 				optimizedMatrices.CostDollars[i][j] = 50 + rand.Intn(375)
 			}
 		}
 
 		for i := range optimizedMatrices.Mode {
-			optimizedMatrices.Mode[i] = make([]TransitType, len(optimizedMatrices.Mode[i]))
+			optimizedMatrices.Mode[i] = make([]TransitType, len(places))
 			for j := range optimizedMatrices.Mode[i] {
 				optimizedMatrices.Mode[i][j] = Walking
 			}
@@ -192,6 +207,18 @@ func main() {
 
 		//create python payload
 		var solverNodes []SolverNode
+		//add start and end
+		solverNodes = append(solverNodes, SolverNode{
+			ID:                "0",
+			Name:              places[0].PlaceName,
+			Latitude:          places[0].Lat,
+			Longitude:         places[0].Lon,
+			DurationInMinutes: 0, // start point, no dwell time
+			TimeWindowStart:   parseTimeIntoMinutes(ItineraryReq.EntryTime),
+			TimeWindowEnd:     parseTimeIntoMinutes(ItineraryReq.ExitTime),
+			Priority:          Mandatory,
+			DropPenalty:       0,
+		})
 
 		for i, stop := range ItineraryReq.Stops {
 			//todo create string id or osmething
@@ -199,10 +226,15 @@ func main() {
 			var timeWindowStart int
 			var timeWindowEnd int
 
-			//set time window for that specific node
+			//set time window for that specific node for when arrival time can be set
 			if stop.TimePreference != nil {
-				timeWindowStart = parseTimeIntoMinutes(*stop.TimePreference)
-				timeWindowEnd = timeWindowStart + 90 //PLACEHOLDER, just gives 1.5 hr time window for now
+				preferred := parseTimeIntoMinutes(*stop.TimePreference)
+				timeWindowStart = preferred - 120 //120 min before preferred arrival time
+				timeWindowEnd = preferred - 2     //
+			} else {
+				// no preference = anytime during the day is fine
+				timeWindowStart = parseTimeIntoMinutes(ItineraryReq.EntryTime)
+				timeWindowEnd = parseTimeIntoMinutes(ItineraryReq.ExitTime)
 			}
 
 			//setup priority and drop penalty based on whether stop is mandatory or not
@@ -221,12 +253,12 @@ func main() {
 				dropPenalty = 2
 			}
 
-			node := SolverNode{
-				ID:                fmt.Sprintf("%d", i),
-				Name:              places[i].PlaceName,
-				Latitude:          places[i].Lat,
-				Longitude:         places[i].Lon,
-				DurationInMinutes: 90,              //PLACEHOLDER
+			node := SolverNode{ //we do i+1 to account for the start node we added at the beginning
+				ID:                fmt.Sprintf("%d", i+1),
+				Name:              places[i+1].PlaceName,
+				Latitude:          places[i+1].Lat,
+				Longitude:         places[i+1].Lon,
+				DurationInMinutes: 35,              //PLACEHOLDER time spent at that location
 				TimeWindowStart:   timeWindowStart, //fix?
 				TimeWindowEnd:     timeWindowEnd,   //fix
 				Priority:          prio,
@@ -238,15 +270,21 @@ func main() {
 		solverInput := SolverInput{
 			Nodes:                 solverNodes,
 			StartIndex:            0,
-			EndIndex:              1,
+			EndIndex:              0,
 			DayStartTimeInMinutes: parseTimeIntoMinutes(ItineraryReq.EntryTime),
 			DayEndTimeInMinutes:   parseTimeIntoMinutes(ItineraryReq.ExitTime),
 			BudgetInCents:         5000,                          //PLACEHOLDER, $50 budget for transit costs
 			TravelTimeMatrix:      optimizedMatrices.TimeMinutes, //TODO david
 			CostMatrix:            optimizedMatrices.CostDollars, //TODO placeholder, wait for david
-			CandidateGroups:       nil,                           //TODO wait on nick
+			CandidateGroups:       []CandidateGroup{},            //TODO wait on nick
 			RouteVariant:          Balanced,
+			//empty so python doesnt get mad
+			Precedences:   [][2]int{},
+			ForcedEdges:   [][2]int{},
+			ExcludedStops: []int{},
 		}
+
+		fmt.Printf("Solver input: %+v\n", solverInput)
 
 		//send python payload
 
@@ -287,6 +325,8 @@ func main() {
 			return
 		}
 
+		fmt.Printf("Solver output: %+v\n", solverOutput)
+
 		//process python response with post processor
 		PostProcessorInput := PostProcessorInput{
 			SolverInput:       solverInput,
@@ -308,6 +348,7 @@ func main() {
 	})
 
 	router.Run(":" + port)
+
 }
 
 // turn 09:00 AM to 540

@@ -19,7 +19,7 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 
 	//check if no solution was found
 	if output.HasSolution == false {
-		return Itinerary{}, fmt.Errorf("no solution found for given input")
+		return Itinerary{}, fmt.Errorf("no solution found for given input, params are trash")
 	} //TODO, OUTPUT failure reason TO FRONTEND (forgot if this is even possible xd)
 
 	for i, routeEntry := range output.Route {
