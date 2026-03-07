@@ -23,69 +23,51 @@ type Address struct {
 }
 
 type EdgeWeights struct {
-	Nodes     []Stop
-	Durations [][]int //travel times both ways: A -> B as well as B -> A, since they may differ
-	Distances [][]int //distances both ways: A -> B as well as B -> A, since they may differ
+	Nodes     []Address
+	Durations [][]int // travel times in minutes
+	Distances [][]int // travel distances in meters
 }
 
 // ---------------- Matrix Aggregator Models  ----------------
 
-// CombinedMatrices is returned by the matrixAggregator.
-//
-// Interpretation:
-// - Mode[i][j] tells you which transit mode was chosen for edge i -> j.
-// - TimeMinutes[i][j] is the travel time (rounded minutes) for that chosen mode.
-// - CostDollars[i][j] is the dollar cost estimate for that chosen mode.
-//
-// Special values:
-// - Mode[i][i] = "NONE" (diagonal)
-// - Mode[i][j] = "UNREACHABLE" when no mode has a valid path for i -> j
-//   (TimeMinutes and CostDollars are set to -1 in that case)
+// EdgeWeights stores the graph data for one transportation type.
+// Nodes is the ordered list of addresses used by the matrices.
+// Durations and Distances are directed matrices, meaning A->B can differ from B->A.
+// CombinedMatrices is the final output of the matrix aggregator.
+
+// For every directed edge from one stop to another:
+// - TimeMinutes[from][to] tells us how long the chosen mode takes
+// - CostCents[from][to] tells us the estimated cost of the chosen mode in cents
+// - Mode[from][to] tells us which transportation type was selected
 type CombinedMatrices struct {
 	TimeMinutes [][]int
-	CostDollars [][]float64
+	CostCents   [][]int
 	Mode        [][]string
 }
 
-// CombineConfig controls the tunable tradeoff between time and money.
-//
-// Scoring framework (lower is better):
-//   score = moneyCost + (LambdaDollarsPerMinute * minutes)
-//
-// This is a standard "generalized cost" approach that lets us tune
-// how much we value time vs saving money.
-//
+// CombineConfig controls how the aggregator compares one transportation mode
+// against another.
+
 // Notes:
-//
-// 1) Costs are treated as *per-edge additive*:
-//    - Walking: $0 per edge (with a walking cap)
-//    - Subway: flat fare per edge (e.g. $3)
-//    - Car: base + per-minute per edge
-//
-//    If later pricing becomes route-level (subway transfer rules, daily passes,
-//    surge across the route, etc.) then picking the best mode per edge becomes
-//    an approximation. Route-level cost should then be handled in the pathfinding step.
-//
-// 2) Enforced a cap to avoid "walk everywhere" results because its free lol.
+//   - Money is stored in cents instead of dollars
+//   - We compare edges using a "lower is better" value called comparison penalty:
+//     comparisonPenalty = costCents + (TimeValueCentsPerMinute * durationMinutes)
+//   - Walking is still free, walking cap to avoid choosing unrealistically
+//     long walking edges.
 type CombineConfig struct {
-	// LambdaDollarsPerMinute is the "tradeoff knob":
-	// - Higher => prioritize time more (minutes become expensive)
-	// - Lower  => prioritize money more (minutes matter less)
-	//
-	// Example: 0.25 $/min ≈ $15/hour.
-	LambdaDollarsPerMinute float64
-
-	// WalkingMaxMinutes is a hard cap: if walking time exceeds this value,
-	// walking is considered NOT allowed for that edge in V1.
-	WalkingMaxMinutes int
-
-	// SubwayFlatFareDollars is assumed to be the per-edge subway fare.
-	SubwayFlatFareDollars float64
-
-	// CarBaseFareDollars is a pickup-like base fee per edge (Uber-ish).
-	CarBaseFareDollars float64
-
-	// CarCostPerMinuteDollars is a simple time-based estimate per edge.
-	// (We do not have distance/surge/tolls rn, easy to upgrade later.)
-	CarCostPerMinuteDollars float64
+	// TimeValueCentsPerMinute is the tunable tradeoff knob between time and money.
+	// Higher values make faster routes more attractive.
+	TimeValueCentsPerMinute int
+	// Walking caps. If either cap is exceeded, walking is considered invalid
+	// for that edge in .
+	WalkingMaxMinutes        int
+	WalkingMaxDistanceMeters int
+	// Subway cost model (assumption: flat fare per edge).
+	SubwayFlatFareCents int
+	// Car cost model.
+	// We now have both duration and distance available from EdgeWeights,
+	// so car pricing can use both.
+	CarBaseFareCents         int
+	CarCostPerMinuteCents    int
+	CarCostPerKilometerCents int
 }

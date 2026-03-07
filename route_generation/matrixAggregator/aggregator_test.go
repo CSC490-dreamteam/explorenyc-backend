@@ -4,272 +4,302 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/CSC490-dreamteam/explorenyc-backend/models"
+	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
-func TestCombineBestEdges_LaymanDemo(t *testing.T) {
-	// These are "made-up but plausible" NYC-ish travel times (minutes).
-	// They are NOT meant to be perfect real-world numbers—just realistic enough
-	// that the chosen modes make intuitive sense to a human reviewer.
-
-	stops := []string{
+func TestCombineBestEdges_LaymanDemo_V2(t *testing.T) {
+	stopNames := []string{
 		"Penn Station",
 		"Central Park",
 		"Ice Cream Shop",
 		"Broadway",
 	}
 
-	// IMPORTANT V1 convention:
-	// - Diagonal is 0 (same stop)
-	// - Off-diagonal 0 means "unreachable / not available for this mode"
-	//
-	// NOTE: In real life walking is basically always reachable, but we include one
-	// unreachable walking edge here to demonstrate the behavior.
+	// We do not need real Address field values for this unit test.
+	// We only need the slice length to match the matrix size.
+	nodes := make([]Address, len(stopNames))
 
-	walk := [][]float64{
-		{0, 35, 12, 28}, // Penn -> Central is far on foot
-		{34, 0, 22, 18},
-		{12, 21, 0, 17},
-		{26, 18, 16, 0},
+	// Walking: free, but capped later by config.
+	walkingEdgeWeights := EdgeWeights{
+		Nodes: nodes,
+		Durations: [][]int{
+			{0, 35, 12, 28},
+			{34, 0, 27, 18},
+			{12, 26, 0, 17},
+			{26, 18, 16, 0},
+		},
+		Distances: [][]int{
+			{0, 2900, 900, 2300},
+			{2800, 0, 2100, 1400},
+			{900, 2000, 0, 1300},
+			{2200, 1400, 1200, 0},
+		},
 	}
 
-	subway := [][]float64{
-		{0, 18, 0, 11}, // Penn -> Ice Cream is "no direct subway" in this toy example
-		{17, 0, 14, 12},
-		{0, 14, 0, 9},
-		{11, 12, 10, 0},
+	// Subway: medium speed, flat fare, but not every edge is available.
+	subwayEdgeWeights := EdgeWeights{
+		Nodes: nodes,
+		Durations: [][]int{
+			{0, 18, 0, 11},
+			{17, 0, 0, 12},
+			{0, 0, 0, 9},
+			{11, 12, 10, 0},
+		},
+		Distances: [][]int{
+			{0, 5200, 0, 3100},
+			{5000, 0, 0, 2700},
+			{0, 0, 0, 2100},
+			{3000, 2800, 2200, 0},
+		},
 	}
 
-	car := [][]float64{
-		{0, 12, 7, 9},
-		{13, 0, 10, 11},
-		{8, 11, 0, 6},
-		{9, 12, 7, 0},
+	// Car: fastest in some places, but more expensive.
+	carEdgeWeights := EdgeWeights{
+		Nodes: nodes,
+		Durations: [][]int{
+			{0, 12, 7, 9},
+			{13, 0, 8, 11},
+			{8, 9, 0, 6},
+			{9, 12, 7, 0},
+		},
+		Distances: [][]int{
+			{0, 4700, 1900, 3300},
+			{4900, 0, 1500, 3600},
+			{2000, 1700, 0, 1400},
+			{3200, 3500, 1500, 0},
+		},
 	}
 
-	// Tuning:
-	// lambda controls how much we "value time" in $/min terms.
-	//
-	// With lambda=0.25, 10 minutes "costs" 2.5 score points even if $0.
-	// WalkingMaxMinutes prevents the system from picking huge walking edges just because they're free.
-	cfg := models.CombineConfig{
-		LambdaDollarsPerMinute: 0.25,
-		WalkingMaxMinutes:      25,
-
-		// Cost assumptions:
-		SubwayFlatFareDollars:   3.00,
-		CarBaseFareDollars:      5.00,
-		CarCostPerMinuteDollars: 0.20,
+	combineConfig := CombineConfig{
+		TimeValueCentsPerMinute:  25,
+		WalkingMaxMinutes:        25,
+		WalkingMaxDistanceMeters: 2000,
+		SubwayFlatFareCents:      300,
+		CarBaseFareCents:         250,
+		CarCostPerMinuteCents:    12,
+		CarCostPerKilometerCents: 50,
 	}
 
-	modes := []TransitMode{
-		NewWalkingMode(walk),
-		NewSubwayMode(subway),
-		NewCarMode(car),
+	combinedMatrices, combineError := CombineBestEdges(
+		walkingEdgeWeights,
+		subwayEdgeWeights,
+		carEdgeWeights,
+		combineConfig,
+	)
+	if combineError != nil {
+		t.Fatalf("unexpected error: %v", combineError)
 	}
 
-	out, err := CombineBestEdges(modes, cfg)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// -------------------- Demo header --------------------
 	t.Log("")
 	t.Log("=======================================================================")
 	t.Log(" MATRIX AGGREGATOR DEMO")
+	t.Log("=======================================================================")
+	t.Log("What goes in:")
+	t.Log("- 3 EdgeWeights inputs: WALKING, SUBWAY, and CAR")
+	t.Log("- Each input contains nodes, durations, and distances")
 	t.Log("")
-	t.Log(" What this does:")
-	t.Log(" - You give 3 time matrices: WALKING, SUBWAY, CAR (minutes from Stop A -> Stop B)")
-	t.Log(" - For each pair (A -> B), we choose ONE best option using a tunable tradeoff:")
-	t.Log("       score = dollarCost + (lambda * minutes)")
-	t.Log("   Lower score wins.")
+	t.Log("What comes out:")
+	t.Log("- ONE chosen mode matrix")
+	t.Log("- ONE chosen time matrix")
+	t.Log("- ONE chosen cost matrix")
 	t.Log("")
-	t.Log(" What we output:")
-	t.Log(" - Mode Matrix: which transport we picked for each A -> B")
-	t.Log(" - Time Matrix: travel time (minutes) for the chosen mode")
-	t.Log(" - Cost Matrix: dollar cost for the chosen mode")
+	t.Log("How the choice is made:")
+	t.Log("comparisonPenalty = costCents + (timeValueCentsPerMinute * durationMinutes)")
+	t.Log("Lower comparison penalty wins.")
 	t.Log("=======================================================================")
 
-	t.Logf("Config: lambda=%.2f, walkCap=%d min, subwayFare=$%.2f, carBase=$%.2f, carPerMin=$%.2f",
-		cfg.LambdaDollarsPerMinute,
-		cfg.WalkingMaxMinutes,
-		cfg.SubwayFlatFareDollars,
-		cfg.CarBaseFareDollars,
-		cfg.CarCostPerMinuteDollars,
+	t.Logf(
+		"Config: timeValue=%d cents/min, walkCap=%d min, walkDistanceCap=%d m, subwayFare=%d cents, carBase=%d cents, carPerMinute=%d cents, carPerKm=%d cents",
+		combineConfig.TimeValueCentsPerMinute,
+		combineConfig.WalkingMaxMinutes,
+		combineConfig.WalkingMaxDistanceMeters,
+		combineConfig.SubwayFlatFareCents,
+		combineConfig.CarBaseFareCents,
+		combineConfig.CarCostPerMinuteCents,
+		combineConfig.CarCostPerKilometerCents,
 	)
 
-	// -------------------- Show inputs --------------------
-	printPrettyFloatMatrixWithStops(t, "INPUT: WALKING time matrix (minutes)", stops, walk)
-	printPrettyFloatMatrixWithStops(t, "INPUT: SUBWAY time matrix (minutes)", stops, subway)
-	printPrettyFloatMatrixWithStops(t, "INPUT: CAR time matrix (minutes)", stops, car)
+	printPrettyIntMatrixWithStops(t, "INPUT: Walking durations (minutes)", stopNames, walkingEdgeWeights.Durations)
+	printPrettyIntMatrixWithStops(t, "INPUT: Subway durations (minutes)", stopNames, subwayEdgeWeights.Durations)
+	printPrettyIntMatrixWithStops(t, "INPUT: Car durations (minutes)", stopNames, carEdgeWeights.Durations)
 
-	// -------------------- Show outputs --------------------
-	printPrettyStringMatrixWithStops(t, "OUTPUT: MODE matrix (chosen transport for each trip A -> B)", stops, out.Mode)
-	printPrettyIntMatrixWithStops(t, "OUTPUT: TIME matrix (minutes for chosen mode)", stops, out.TimeMinutes)
-	printPrettyFloatMatrixWithStops(t, "OUTPUT: COST matrix ($ for chosen mode)", stops, out.CostDollars)
+	printPrettyStringMatrixWithStops(t, "OUTPUT: Chosen mode for each trip", stopNames, combinedMatrices.Mode)
+	printPrettyIntMatrixWithStops(t, "OUTPUT: Chosen travel time (minutes)", stopNames, combinedMatrices.TimeMinutes)
+	printPrettyCentsMatrixWithStops(t, "OUTPUT: Chosen travel cost (stored as cents, shown as dollars)", stopNames, combinedMatrices.CostCents)
 
-	// -------------------- Minimal invariants --------------------
-	validateOutputInvariants(t, out, cfg)
+	validateOutputInvariants(t, combinedMatrices, combineConfig)
 }
 
 /* -------------------------------------------------------------------------
-Pretty printing helpers (tables labeled by stop names)
+Pretty printing helpers
 ------------------------------------------------------------------------- */
 
-func printPrettyStringMatrixWithStops(t *testing.T, title string, stops []string, m [][]string) {
+func printPrettyStringMatrixWithStops(
+	t *testing.T,
+	title string,
+	stopNames []string,
+	matrix [][]string,
+) {
 	t.Helper()
 	t.Log("")
 	t.Log("------------------------------------------------------------")
 	t.Log(title)
 	t.Log("------------------------------------------------------------")
 
-	n := len(stops)
-
-	// Header row
-	header := fmt.Sprintf("%-14s |", "From \\ To")
-	for j := 0; j < n; j++ {
-		header += fmt.Sprintf(" %-14s |", shortStop(stops[j]))
+	headerRow := fmt.Sprintf("%-16s |", "From \\ To")
+	for _, stopName := range stopNames {
+		headerRow += fmt.Sprintf(" %-14s |", shortenStopName(stopName))
 	}
-	t.Log(header)
+	t.Log(headerRow)
 
-	// Rows
-	for i := 0; i < n; i++ {
-		row := fmt.Sprintf("%-14s |", shortStop(stops[i]))
-		for j := 0; j < n; j++ {
-			row += fmt.Sprintf(" %-14s |", m[i][j])
+	for fromStopIndex := 0; fromStopIndex < len(matrix); fromStopIndex++ {
+		rowText := fmt.Sprintf("%-16s |", shortenStopName(stopNames[fromStopIndex]))
+		for toStopIndex := 0; toStopIndex < len(matrix[fromStopIndex]); toStopIndex++ {
+			rowText += fmt.Sprintf(" %-14s |", matrix[fromStopIndex][toStopIndex])
 		}
-		t.Log(row)
+		t.Log(rowText)
 	}
 }
 
-func printPrettyIntMatrixWithStops(t *testing.T, title string, stops []string, m [][]int) {
+func printPrettyIntMatrixWithStops(
+	t *testing.T,
+	title string,
+	stopNames []string,
+	matrix [][]int,
+) {
 	t.Helper()
 	t.Log("")
 	t.Log("------------------------------------------------------------")
 	t.Log(title)
 	t.Log("------------------------------------------------------------")
 
-	n := len(stops)
-
-	header := fmt.Sprintf("%-14s |", "From \\ To")
-	for j := 0; j < n; j++ {
-		header += fmt.Sprintf(" %-14s |", shortStop(stops[j]))
+	headerRow := fmt.Sprintf("%-16s |", "From \\ To")
+	for _, stopName := range stopNames {
+		headerRow += fmt.Sprintf(" %-14s |", shortenStopName(stopName))
 	}
-	t.Log(header)
+	t.Log(headerRow)
 
-	for i := 0; i < n; i++ {
-		row := fmt.Sprintf("%-14s |", shortStop(stops[i]))
-		for j := 0; j < n; j++ {
-			row += fmt.Sprintf(" %-14d |", m[i][j])
+	for fromStopIndex := 0; fromStopIndex < len(matrix); fromStopIndex++ {
+		rowText := fmt.Sprintf("%-16s |", shortenStopName(stopNames[fromStopIndex]))
+		for toStopIndex := 0; toStopIndex < len(matrix[fromStopIndex]); toStopIndex++ {
+			rowText += fmt.Sprintf(" %-14d |", matrix[fromStopIndex][toStopIndex])
 		}
-		t.Log(row)
+		t.Log(rowText)
 	}
 }
 
-func printPrettyFloatMatrixWithStops(t *testing.T, title string, stops []string, m [][]float64) {
+func printPrettyCentsMatrixWithStops(
+	t *testing.T,
+	title string,
+	stopNames []string,
+	matrix [][]int,
+) {
 	t.Helper()
 	t.Log("")
 	t.Log("------------------------------------------------------------")
 	t.Log(title)
 	t.Log("------------------------------------------------------------")
 
-	n := len(stops)
-
-	header := fmt.Sprintf("%-14s |", "From \\ To")
-	for j := 0; j < n; j++ {
-		header += fmt.Sprintf(" %-14s |", shortStop(stops[j]))
+	headerRow := fmt.Sprintf("%-16s |", "From \\ To")
+	for _, stopName := range stopNames {
+		headerRow += fmt.Sprintf(" %-14s |", shortenStopName(stopName))
 	}
-	t.Log(header)
+	t.Log(headerRow)
 
-	for i := 0; i < n; i++ {
-		row := fmt.Sprintf("%-14s |", shortStop(stops[i]))
-		for j := 0; j < n; j++ {
-			row += fmt.Sprintf(" %-14.1f |", m[i][j])
+	for fromStopIndex := 0; fromStopIndex < len(matrix); fromStopIndex++ {
+		rowText := fmt.Sprintf("%-16s |", shortenStopName(stopNames[fromStopIndex]))
+		for toStopIndex := 0; toStopIndex < len(matrix[fromStopIndex]); toStopIndex++ {
+			cellValue := formatCentsForHumans(matrix[fromStopIndex][toStopIndex])
+			rowText += fmt.Sprintf(" %-14s |", cellValue)
 		}
-		t.Log(row)
+		t.Log(rowText)
 	}
 }
 
-func shortStop(name string) string {
-	// Keeps the table columns clean.
-	// Adjust as you like, this is just to avoid mega wide tables.
-	if len(name) <= 14 {
-		return name
+func shortenStopName(stopName string) string {
+	if len(stopName) <= 14 {
+		return stopName
 	}
-	return name[:14]
+	return stopName[:14]
+}
+
+func formatCentsForHumans(costCents int) string {
+	if costCents < 0 {
+		return "UNREACHABLE"
+	}
+	return fmt.Sprintf("$%.2f", float64(costCents)/100.0)
 }
 
 /* -------------------------------------------------------------------------
 Validation helpers
 ------------------------------------------------------------------------- */
 
-func validateOutputInvariants(t *testing.T, out models.CombinedMatrices, cfg models.CombineConfig) {
+func validateOutputInvariants(
+	t *testing.T,
+	combinedMatrices CombinedMatrices,
+	combineConfig CombineConfig,
+) {
 	t.Helper()
 
-	n := len(out.Mode)
-	if n == 0 {
+	stopCount := len(combinedMatrices.Mode)
+	if stopCount == 0 {
 		t.Fatalf("output matrices should not be empty")
 	}
 
-	// shape checks
-	if len(out.TimeMinutes) != n || len(out.CostDollars) != n {
-		t.Fatalf("output matrices are mismatched sizes")
+	if len(combinedMatrices.TimeMinutes) != stopCount || len(combinedMatrices.CostCents) != stopCount {
+		t.Fatalf("output matrices have mismatched sizes")
 	}
-	for i := 0; i < n; i++ {
-		if len(out.Mode[i]) != n || len(out.TimeMinutes[i]) != n || len(out.CostDollars[i]) != n {
+
+	for fromStopIndex := 0; fromStopIndex < stopCount; fromStopIndex++ {
+		if len(combinedMatrices.Mode[fromStopIndex]) != stopCount ||
+			len(combinedMatrices.TimeMinutes[fromStopIndex]) != stopCount ||
+			len(combinedMatrices.CostCents[fromStopIndex]) != stopCount {
 			t.Fatalf("output matrices must be NxN")
 		}
+
+		if combinedMatrices.Mode[fromStopIndex][fromStopIndex] != selfModeName {
+			t.Fatalf("diagonal mode must be %s", selfModeName)
+		}
+
+		if combinedMatrices.TimeMinutes[fromStopIndex][fromStopIndex] != 0 {
+			t.Fatalf("diagonal time must be 0")
+		}
+
+		if combinedMatrices.CostCents[fromStopIndex][fromStopIndex] != 0 {
+			t.Fatalf("diagonal cost must be 0")
+		}
 	}
 
-	// diagonal checks + mode/cost consistency
-	for i := 0; i < n; i++ {
-		if out.Mode[i][i] != "SELF" {
-			t.Fatalf("diagonal mode expected SELF at (%d,%d), got %s", i, i, out.Mode[i][i])
-		}
-		if out.TimeMinutes[i][i] != 0 || out.CostDollars[i][i] != 0 {
-			t.Fatalf("diagonal expected time=0 cost=0 at (%d,%d)", i, i)
-		}
-	}
-
-	// basic mode/cost consistency
-	for i := 0; i < n; i++ {
-		for j := 0; j < n; j++ {
-			if i == j {
+	for fromStopIndex := 0; fromStopIndex < stopCount; fromStopIndex++ {
+		for toStopIndex := 0; toStopIndex < stopCount; toStopIndex++ {
+			if fromStopIndex == toStopIndex {
 				continue
 			}
 
-			switch out.Mode[i][j] {
-			case "WALKING":
-				if out.CostDollars[i][j] != 0 {
-					t.Fatalf("walking cost must be 0 at (%d,%d)", i, j)
-				}
-				if out.TimeMinutes[i][j] <= 0 {
-					t.Fatalf("walking time must be >0 at (%d,%d)", i, j)
+			switch combinedMatrices.Mode[fromStopIndex][toStopIndex] {
+			case walkingModeName:
+				if combinedMatrices.CostCents[fromStopIndex][toStopIndex] != 0 {
+					t.Fatalf("walking cost must be 0 at (%d,%d)", fromStopIndex, toStopIndex)
 				}
 
-			case "SUBWAY":
-				if out.CostDollars[i][j] != cfg.SubwayFlatFareDollars {
-					t.Fatalf("subway cost must be %.2f at (%d,%d)", cfg.SubwayFlatFareDollars, i, j)
-				}
-				if out.TimeMinutes[i][j] <= 0 {
-					t.Fatalf("subway time must be >0 at (%d,%d)", i, j)
+			case subwayModeName:
+				if combinedMatrices.CostCents[fromStopIndex][toStopIndex] != combineConfig.SubwayFlatFareCents {
+					t.Fatalf("subway cost mismatch at (%d,%d)", fromStopIndex, toStopIndex)
 				}
 
-			case "CAR":
-				if out.CostDollars[i][j] < cfg.CarBaseFareDollars {
-					t.Fatalf("car cost must be >= base fare at (%d,%d)", i, j)
-				}
-				if out.TimeMinutes[i][j] <= 0 {
-					t.Fatalf("car time must be >0 at (%d,%d)", i, j)
+			case carModeName:
+				if combinedMatrices.CostCents[fromStopIndex][toStopIndex] < combineConfig.CarBaseFareCents {
+					t.Fatalf("car cost must be at least the base fare at (%d,%d)", fromStopIndex, toStopIndex)
 				}
 
-			case "UNREACHABLE":
-				if out.TimeMinutes[i][j] != -1 || out.CostDollars[i][j] != -1 {
-					t.Fatalf("unreachable must be time=-1 cost=-1 at (%d,%d)", i, j)
+			case unreachableModeName:
+				if combinedMatrices.TimeMinutes[fromStopIndex][toStopIndex] != -1 ||
+					combinedMatrices.CostCents[fromStopIndex][toStopIndex] != -1 {
+					t.Fatalf("unreachable edges must be stored as -1 / -1 at (%d,%d)", fromStopIndex, toStopIndex)
 				}
 
 			default:
-				t.Fatalf("unexpected mode value at (%d,%d): %s", i, j, out.Mode[i][j])
+				t.Fatalf("unexpected mode value at (%d,%d): %s", fromStopIndex, toStopIndex, combinedMatrices.Mode[fromStopIndex][toStopIndex])
 			}
 		}
 	}
