@@ -69,8 +69,8 @@ func main() {
 
 	pythonURL := os.Getenv("PYTHON_SERVICE_URL")
 	if pythonURL == "" {
-		fmt.Println("PYTHON_SERVICE_URL not set, defaulting to http://0.0.0.0:8080")
-		pythonURL = "http://0.0.0.0:8080"
+		fmt.Println("PYTHON_SERVICE_URL not set, defaulting to http://0.0.0.0:8000")
+		pythonURL = "http://0.0.0.0:8000"
 	}
 	pythonURL = pythonURL + "/generate_route"
 
