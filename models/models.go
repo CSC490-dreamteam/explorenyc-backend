@@ -74,6 +74,72 @@ type CombineConfig struct {
 	Distances                [][]int //distances both ways: A -> B as well as B -> A, since they may differ
 }
 
+// ---------------- Matrix Aggregator Models  ----------------
+
+// CombinedMatrices is returned by the matrixAggregator.
+//
+// Interpretation:
+// - Mode[i][j] tells you which transit mode was chosen for edge i -> j.
+// - TimeMinutes[i][j] is the travel time (rounded minutes) for that chosen mode.
+// - CostDollars[i][j] is the dollar cost estimate for that chosen mode.
+//
+// Special values:
+//   - Mode[i][i] = "NONE" (diagonal)
+//   - Mode[i][j] = "UNREACHABLE" when no mode has a valid path for i -> j
+//     (TimeMinutes and CostDollars are set to -1 in that case)
+type CombinedMatrices struct {
+	TimeMinutes [][]int
+	CostDollars [][]int
+	Mode        [][]TransitType
+}
+
+// CombineConfig controls the tunable tradeoff between time and money.
+//
+// Scoring framework (lower is better):
+//
+//	score = moneyCost + (LambdaDollarsPerMinute * minutes)
+//
+// This is a standard "generalized cost" approach that lets us tune
+// how much we value time vs saving money.
+//
+// Notes:
+//
+// 1) Costs are treated as *per-edge additive*:
+//
+//   - Walking: $0 per edge (with a walking cap)
+//
+//   - Subway: flat fare per edge (e.g. $3)
+//
+//   - Car: base + per-minute per edge
+//
+//     If later pricing becomes route-level (subway transfer rules, daily passes,
+//     surge across the route, etc.) then picking the best mode per edge becomes
+//     an approximation. Route-level cost should then be handled in the pathfinding step.
+//
+// 2) Enforced a cap to avoid "walk everywhere" results because its free lol.
+type CombineConfig struct {
+	// LambdaDollarsPerMinute is the "tradeoff knob":
+	// - Higher => prioritize time more (minutes become expensive)
+	// - Lower  => prioritize money more (minutes matter less)
+	//
+	// Example: 0.25 $/min ≈ $15/hour.
+	LambdaDollarsPerMinute float64
+
+	// WalkingMaxMinutes is a hard cap: if walking time exceeds this value,
+	// walking is considered NOT allowed for that edge in V1.
+	WalkingMaxMinutes int
+
+	// SubwayFlatFareDollars is assumed to be the per-edge subway fare.
+	SubwayFlatFareDollars float64
+
+	// CarBaseFareDollars is a pickup-like base fee per edge (Uber-ish).
+	CarBaseFareDollars float64
+
+	// CarCostPerMinuteDollars is a simple time-based estimate per edge.
+	// (We do not have distance/surge/tolls rn, easy to upgrade later.)
+	CarCostPerMinuteDollars float64
+}
+
 type TransitType int
 
 const (
@@ -150,54 +216,54 @@ const (
 )
 
 type SolverNode struct {
-	ID                string
-	Name              string
-	Latitude          float64
-	Longitude         float64
-	DurationInMinutes int
-	TimeWindowStart   int
-	TimeWindowEnd     int
-	Priority          Priority
-	DropPenalty       int
-	CandidateGroupID  string
+	ID                string   `json:"id"`
+	Name              string   `json:"name"`
+	Latitude          float64  `json:"latitude"`
+	Longitude         float64  `json:"longitude"`
+	DurationInMinutes int      `json:"duration_in_minutes"`
+	TimeWindowStart   int      `json:"time_window_start"`
+	TimeWindowEnd     int      `json:"time_window_end"`
+	Priority          Priority `json:"priority"`
+	DropPenalty       int      `json:"drop_penalty"`
+	CandidateGroupID  string   `json:"candidate_group_id,omitempty"`
 }
 
 // a group of stops where exactly one is picked by the route to be added in
 // i.e Nicks algo suggests 5 taco places for lunch, one of these is selected to be added in the route
 type CandidateGroup struct {
-	ID          string
-	StopIndices []int
+	ID          string `json:"id"`
+	StopIndices []int  `json:"stop_indices"`
 }
 
 type SolverInput struct {
-	Nodes                 []SolverNode
-	StartIndex            int
-	EndIndex              int
-	DayStartTimeInMinutes int
-	DayEndTimeInMinutes   int
-	BudgetInCents         int
-	TravelTimeMatrix      [][]int
-	CostMatrix            [][]int
-	CandidateGroups       []CandidateGroup
-	RouteVariant          RouteVariant
+	Nodes                 []SolverNode     `json:"nodes"`
+	StartIndex            int              `json:"start_index"`
+	EndIndex              int              `json:"end_index"`
+	DayStartTimeInMinutes int              `json:"day_start_time_in_minutes"`
+	DayEndTimeInMinutes   int              `json:"day_end_time_in_minutes"`
+	BudgetInCents         int              `json:"budget_in_cents"`
+	TravelTimeMatrix      [][]int          `json:"travel_time_matrix_in_minutes"`
+	CostMatrix            [][]int          `json:"travel_cost_matrix_in_cents"`
+	CandidateGroups       []CandidateGroup `json:"candidate_groups"`
+	RouteVariant          RouteVariant     `json:"route_variant"`
 	//maybe these 3 are overkill idk
-	Precedences   [][2]int //list of pairs of stop indices where the first must come before the second in the route
-	ForcedEdges   [][2]int //list of pairs of stop indices where the first must be immediately followed by the second in the route
-	ExcludedStops []int    //user rejected stops
+	Precedences   [][2]int `json:"precedences"`    //list of pairs of stop indices where the first must come before the second in the route
+	ForcedEdges   [][2]int `json:"forced_edges"`   //list of pairs of stop indices where the first must be immediately followed by the second in the route
+	ExcludedStops []int    `json:"excluded_stops"` //user rejected stops
 }
 
 // segment of a route
 type RouteEntry struct {
-	NodeIndex              int
-	ArrivalTimeInMinutes   int
-	DepartureTimeInMinutes int
+	NodeIndex              int `json:"node_index"`
+	ArrivalTimeInMinutes   int `json:"arrival_time_in_minutes"`
+	DepartureTimeInMinutes int `json:"departure_time_in_minutes"`
 }
 
 type SolverOutput struct {
-	Route              []RouteEntry
-	DroppedStops       []int
-	TotalTimeInMinutes int
-	TotalCostInCents   int
-	Score              int
-	HasSolution        bool
+	Route              []RouteEntry `json:"route"`
+	DroppedStops       []int        `json:"dropped_stops"`
+	TotalTimeInMinutes int          `json:"total_time_in_minutes"`
+	TotalCostInCents   int          `json:"total_cost_in_cents"`
+	Score              int          `json:"score"`
+	HasSolution        bool         `json:"has_solution"`
 }
