@@ -15,6 +15,7 @@ import (
 
 type GoogleMaps struct{}
 
+
 func (g GoogleMaps) AcquireWalkingTravelTime(stops []Address) (EdgeWeights, error) {
 	return g.acquireTravelTime(stops, "walking")
 }
@@ -154,3 +155,4 @@ func (g GoogleMaps) acquireTravelTime(stops []Address, transitMode string) (Edge
 		Durations: durations,
 	}, nil
 }
+

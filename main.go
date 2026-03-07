@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"text/template/parse"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -17,6 +16,7 @@ import (
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
+	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/postprocessing"
 )
 
 type RouteRequest struct {
@@ -56,6 +56,12 @@ func main() {
 		AllowHeaders: []string{"Content-Type", "X-API-Key"},
 	}))
 	router.Use(apiKeyAuth())
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	router.Run(":" + port)
 
 	//old brute force google routing endpoint
 	router.POST("/GenerateRoute", func(context *gin.Context) {
@@ -103,7 +109,6 @@ func main() {
 
 		//parse frontend json
 
-		
 		var stops []Address
 		var errors []string
 		var mapProvider maps.Provider = maps.GoogleMaps{}
@@ -152,19 +157,18 @@ func main() {
 
 		//combine weights using david's part
 		//TODO
-		//test with just walking for now
 
-
+		optimizedMatrices := CombineBestEdges(walkingEdges, carEdges, subwayEdges) //placeholder for now, just uses walking edges
 
 		//create python payload
 
 		var solverNodes []SolverNode
 
-		for i, stop := range stops {
+		for i, stop := range ItineraryReq.Stops {
 			//todo create string id or osmething
 
-			var timeWindowStart int64
-			var timeWindowEnd int64
+			var timeWindowStart int
+			var timeWindowEnd int
 
 			//set time window for that specific node
 			if stop.TimePreference != nil {
@@ -173,67 +177,85 @@ func main() {
 			}
 
 			//setup priority and drop penalty based on whether stop is mandatory or not
-			prio := Optional
+			prio := WantToSee
 			if stop.Mandatory {
 				prio = Mandatory
 			}
 
-			var dropPenalty int64 = 0
-			switch priority {
+			var dropPenalty int = 0
+			switch prio {
 			case Mandatory:
-				dropPenalty = 0  //undroppable
+				dropPenalty = 0 //undroppable
 			case WantToSee:
-				dropPenalty = 5000
+				dropPenalty = 8 //will be dropped if it screws over like 4-6 optional places?
 			case Optional:
-				dropPenalty = 5000
+				dropPenalty = 2
 			}
-			
 
 			node := SolverNode{
-				ID:       fmt.Sprintf("%d", i),
-				Stop:     stop.PlaceName,
-				Latitude:      stop.Lat,
-				Longitude:      stop.Lon,
-				DurationInMinutes: 90, //PLACEHOLDER
-				TimeWindowStart: stop.TimePreference, //fix?
-				TimeWindowEnd: stop.TimePreference+90, //fix
-				Priority: stop.Priority,
-				DropPenalty: ,
+				ID:                fmt.Sprintf("%d", i),
+				Name:              stops[i].PlaceName,
+				Latitude:          stops[i].Lat,
+				Longitude:         stops[i].Lon,
+				DurationInMinutes: 90,              //PLACEHOLDER
+				TimeWindowStart:   timeWindowStart, //fix?
+				TimeWindowEnd:     timeWindowEnd,   //fix
+				Priority:          prio,
+				DropPenalty:       dropPenalty,
 			}
+			solverNodes = append(solverNodes, node)
+		}
+
+		solverInput := SolverInput{
+			Nodes:                 solverNodes,
+			StartIndex:            0,
+			EndIndex:              1,
+			DayStartTimeInMinutes: parseTimeIntoMinutes(ItineraryReq.EntryTime),
+			DayEndTimeInMinutes:   parseTimeIntoMinutes(ItineraryReq.ExitTime),
+			BudgetInCents:         5000,                          //PLACEHOLDER, $50 budget for transit costs
+			TravelTimeMatrix:      optimizedMatrices.TimeMinutes, //TODO david
+			CostMatrix:            optimizedMatrices.CostDollars, //TODO placeholder, wait for david
+			CandidateGroups:       nil,                           //TODO wait on nick
+			RouteVariant:          Balanced,
+		}
 
 		//send python payload
 
+		//parse python response
+
 		//process python response with post processor
+		PostProcessorInput := PostProcessorInput{
+			SolverInput:       solverInput,
+			SolverOutput:      SolverOutput{},                //TODO get real output from python
+			StopMap:           make(map[int]Address),         //TODO make stopmap that maps stop indices to their address for post processor
+			TransitTypeMatrix: optimizedMatrices.Mode,        //TODO get from david
+			TransitCostMatrix: optimizedMatrices.CostDollars, //TODO get from david
+		}
 
+		itinerary, err := postprocessing.ProcessRouteResponse(PostProcessorInput)
 
-
+		if err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to process route response: %v", err)})
+			return
+		}
 
 		//send out the itinerary to the frontend
-		context.JSON(http.StatusOK, Itinerary{})
+		context.JSON(http.StatusOK, itinerary)
 	})
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	router.Run(":" + port)
 
 }
 
 // turn 09:00 AM to 540
-func parseTimeIntoMinutes(timeStr string) (int64, error) {
+func parseTimeIntoMinutes(timeStr string) int {
 	timeStr = strings.TrimSpace(timeStr)
 	layouts := []string{"3:04 PM", "15:04", "15:04:05"}
 
-	var time time.Time
-	var err error
 	for _, layout := range layouts {
 		if t, err := time.Parse(layout, timeStr); err == nil {
-			return int64(t.Hour()*60 + t.Minute()), nil
+			return int(t.Hour()*60 + t.Minute())
 		}
 	}
 
-	return 0, fmt.Errorf("invalid time format: %s", timeStr)
-
+	fmt.Errorf("invalid time format: %s", timeStr)
+	return -1
 }
-	
