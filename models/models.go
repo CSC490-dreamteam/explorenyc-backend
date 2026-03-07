@@ -87,22 +87,22 @@ const (
 type ItineraryEntry struct {
 	Name                    string //incase we call it like "Lunch" or "Museum" instead of the actual name of the stop
 	Address                 Address
-	ArrivalTimeInMinutes    int64 //clock time you get there, written as minutes from midnight, so 600 is 10 AM
-	DepartureTimeInMinutes  int64 //clock time you leave, written as minutes from midnight, so 600 is 10 AM
-	DurationAtStopInMinutes int64 //how long you spend at the stop, so DepartureTime - ArrivalTime
+	ArrivalTimeInMinutes    int //clock time you get there, written as minutes from midnight, so 600 is 10 AM
+	DepartureTimeInMinutes  int //clock time you leave, written as minutes from midnight, so 600 is 10 AM
+	DurationAtStopInMinutes int //how long you spend at the stop, so DepartureTime - ArrivalTime
 	TransportToNextStop     TransitType
-	TravelTimeToNextStop    int64
-	TransitCost             int64
+	TravelTimeToNextStop    int
+	TransitCost             int
 }
 
 type Itinerary struct {
 	Entries                 []ItineraryEntry
 	DroppedStops            []Address
-	TotalTimeInMinutes      int64
-	TotalTransitCostInCents int64
-	TotalCostInCents        int64
-	StartTimeInMinutes      int64
-	EndTimeInMinutes        int64
+	TotalTimeInMinutes      int
+	TotalTransitCostInCents int
+	TotalCostInCents        int
+	StartTimeInMinutes      int
+	EndTimeInMinutes        int
 }
 
 type StopRequest struct {
@@ -126,7 +126,7 @@ type PostProcessorInput struct {
 	SolverOutput      SolverOutput
 	StopMap           map[int]Address
 	TransitTypeMatrix [][]TransitType
-	TransitCostMatrix [][]int64
+	TransitCostMatrix [][]int
 }
 
 //////////////////
@@ -154,11 +154,11 @@ type SolverNode struct {
 	Name              string
 	Latitude          float64
 	Longitude         float64
-	DurationInMinutes int64
-	TimeWindowStart   int64
-	TimeWindowEnd     int64
+	DurationInMinutes int
+	TimeWindowStart   int
+	TimeWindowEnd     int
 	Priority          Priority
-	DropPenalty       int64
+	DropPenalty       int
 	CandidateGroupID  string
 }
 
@@ -173,11 +173,11 @@ type SolverInput struct {
 	Nodes                 []SolverNode
 	StartIndex            int
 	EndIndex              int
-	DayStartTimeInMinutes int64
-	DayEndTimeInMinutes   int64
-	BudgetInCents         int64
-	TravelTimeMatrix      [][]int64
-	CostMatrix            [][]int64
+	DayStartTimeInMinutes int
+	DayEndTimeInMinutes   int
+	BudgetInCents         int
+	TravelTimeMatrix      [][]int
+	CostMatrix            [][]int
 	CandidateGroups       []CandidateGroup
 	RouteVariant          RouteVariant
 	//maybe these 3 are overkill idk
@@ -189,15 +189,15 @@ type SolverInput struct {
 // segment of a route
 type RouteEntry struct {
 	NodeIndex              int
-	ArrivalTimeInMinutes   int64
-	DepartureTimeInMinutes int64
+	ArrivalTimeInMinutes   int
+	DepartureTimeInMinutes int
 }
 
 type SolverOutput struct {
 	Route              []RouteEntry
 	DroppedStops       []int
-	TotalTimeInMinutes int64
-	TotalCostInCents   int64
-	Score              int64
+	TotalTimeInMinutes int
+	TotalCostInCents   int
+	Score              int
 	HasSolution        bool
 }

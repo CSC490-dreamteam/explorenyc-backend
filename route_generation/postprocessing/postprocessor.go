@@ -27,9 +27,9 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 		nodeAddress := stopmap[routeEntry.NodeIndex]
 
 		//defaults to 0 values if at the last stop
-		var travelTimeToNext int64
+		var travelTimeToNext int
 		var transitModeToNext TransitType
-		var travelCostToNext int64
+		var travelCostToNext int
 
 		//if not at the last stop, get info about next stop
 		if i < len(output.Route)-1 {
