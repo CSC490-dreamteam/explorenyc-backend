@@ -15,11 +15,11 @@ func TestAcquireWalkingTravelTimeFromGoogle(t *testing.T) {
 		log.Fatal("error loading .env")
 	}
 
-	stops := []Stop{
-		{Name: "Empire State Building", Latitude: 40.748441, Longitude: -73.985664},
-		{Name: "Starbucks", Latitude: 40.756640, Longitude: -73.985900},
-		{Name: "Central Park Zoo", Latitude: 40.767706, Longitude: -73.971991},
-		{Name: "350 5th Ave", Latitude: 40.748721, Longitude: -73.984817},
+	stops := []Address{
+		{PlaceName: "Empire State Building", Lat: 40.748441, Lon: -73.985664},
+		{PlaceName: "Starbucks", Lat: 40.756640, Lon: -73.985900},
+		{PlaceName: "Central Park Zoo", Lat: 40.767706, Lon: -73.971991},
+		{PlaceName: "350 5th Ave", Lat: 40.748721, Lon: -73.984817},
 	}
 
 	var edgeProvider WalkingMatrixProvider = GoogleMaps{}
@@ -42,14 +42,14 @@ func TestAcquireWalkingTravelTimeFromGoogle(t *testing.T) {
 	fmt.Printf("--- Durations (seconds) ---")
 	for i, origin := range stops {
 		for j, destination := range stops {
-			fmt.Printf("  %s -> %s: %d seconds\n", origin.Name, destination.Name, result.Durations[i][j])
+			fmt.Printf("  %s -> %s: %d seconds\n", origin.PlaceName, destination.PlaceName, result.Durations[i][j])
 		}
 	}
 
 	fmt.Printf("--- Distances (meters) ---")
 	for i, origin := range stops {
 		for j, destination := range stops {
-			fmt.Printf("  %s -> %s: %d meters\n", origin.Name, destination.Name, result.Distances[i][j])
+			fmt.Printf("  %s -> %s: %d meters\n", origin.PlaceName, destination.PlaceName, result.Distances[i][j])
 		}
 	}
 
@@ -60,11 +60,11 @@ func TestAcquireCarTravelTimeFromGoogle(t *testing.T) {
 		log.Fatal("error loading .env")
 	}
 
-	stops := []Stop{
-		{Name: "Empire State Building", Latitude: 40.748441, Longitude: -73.985664},
-		{Name: "Starbucks", Latitude: 40.756640, Longitude: -73.985900},
-		{Name: "Central Park Zoo", Latitude: 40.767706, Longitude: -73.971991},
-		{Name: "350 5th Ave", Latitude: 40.748721, Longitude: -73.984817},
+	stops := []Address{
+		{PlaceName: "Empire State Building", Lat: 40.748441, Lon: -73.985664},
+		{PlaceName: "Starbucks", Lat: 40.756640, Lon: -73.985900},
+		{PlaceName: "Central Park Zoo", Lat: 40.767706, Lon: -73.971991},
+		{PlaceName: "350 5th Ave", Lat: 40.748721, Lon: -73.984817},
 	}
 
 	var edgeProvider CarMatrixProvider = GoogleMaps{}
@@ -87,14 +87,14 @@ func TestAcquireCarTravelTimeFromGoogle(t *testing.T) {
 	fmt.Printf("--- Durations (seconds) ---")
 	for i, origin := range stops {
 		for j, destination := range stops {
-			fmt.Printf("  %s -> %s: %d seconds\n", origin.Name, destination.Name, result.Durations[i][j])
+			fmt.Printf("  %s -> %s: %d seconds\n", origin.PlaceName, destination.PlaceName, result.Durations[i][j])
 		}
 	}
 
 	fmt.Printf("--- Distances (meters) ---")
 	for i, origin := range stops {
 		for j, destination := range stops {
-			fmt.Printf("  %s -> %s: %d meters\n", origin.Name, destination.Name, result.Distances[i][j])
+			fmt.Printf("  %s -> %s: %d meters\n", origin.PlaceName, destination.PlaceName, result.Distances[i][j])
 		}
 	}
 
@@ -106,11 +106,11 @@ func TestAcquireSubwayTravelTimeFromGoogle(t *testing.T) {
 		log.Fatal("error loading .env")
 	}
 
-	stops := []Stop{
-		{Name: "Empire State Building", Latitude: 40.748441, Longitude: -73.985664},
-		{Name: "Starbucks", Latitude: 40.756640, Longitude: -73.985900},
-		{Name: "Central Park Zoo", Latitude: 40.767706, Longitude: -73.971991},
-		{Name: "350 5th Ave", Latitude: 40.748721, Longitude: -73.984817},
+	stops := []Address{
+		{PlaceName: "Empire State Building", Lat: 40.748441, Lon: -73.985664},
+		{PlaceName: "Starbucks", Lat: 40.756640, Lon: -73.985900},
+		{PlaceName: "Central Park Zoo", Lat: 40.767706, Lon: -73.971991},
+		{PlaceName: "350 5th Ave", Lat: 40.748721, Lon: -73.984817},
 	}
 
 	var edgeProvider SubwayMatrixProvider = GoogleMaps{}
@@ -133,14 +133,14 @@ func TestAcquireSubwayTravelTimeFromGoogle(t *testing.T) {
 	fmt.Printf("--- Durations (seconds) ---")
 	for i, origin := range stops {
 		for j, destination := range stops {
-			fmt.Printf("  %s -> %s: %d seconds\n", origin.Name, destination.Name, result.Durations[i][j])
+			fmt.Printf("  %s -> %s: %d seconds\n", origin.PlaceName, destination.PlaceName, result.Durations[i][j])
 		}
 	}
 
 	fmt.Printf("--- Distances (meters) ---")
 	for i, origin := range stops {
 		for j, destination := range stops {
-			fmt.Printf("  %s -> %s: %d meters\n", origin.Name, destination.Name, result.Distances[i][j])
+			fmt.Printf("  %s -> %s: %d meters\n", origin.PlaceName, destination.PlaceName, result.Distances[i][j])
 		}
 	}
 

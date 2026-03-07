@@ -1,15 +1,21 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/joho/godotenv"
 
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
-	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathFinders"
+	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
 )
 
 func TestGrabAddressFromGoogleMaps(t *testing.T) {
@@ -95,4 +101,75 @@ func TestExportGoogleURL(t *testing.T) {
 	bestPath := pathfinders.BruteForcePathFinderWithDistance(stops)
 	url := maps.GetGoogleMapsRouteExportURL(bestPath)
 	fmt.Printf("Google Maps Route URL: %s\n", url)
+}
+func inputTime(s string) *string {
+	return &s
+}
+func TestLocalGenerateItinerary(t *testing.T) {
+	err := godotenv.Load()
+	if err != nil {
+		t.Fatal("error loading .env")
+	}
+
+	requestBody := ItineraryRequest{
+		TripName:      "NYC Adventure",
+		Date:          "2023-10-27",
+		EntryTime:     "11:00 AM",
+		ExitTime:      "09:00 PM",
+		StartLocation: "Penn Station, New York, NY",
+		Stops: []StopRequest{
+			{
+				Location:       "Times Square",
+				TimePreference: nil,
+				Mandatory:      true,
+			},
+			{
+				Location:       "Central Park",
+				TimePreference: inputTime("4:00 PM"),
+				Mandatory:      true,
+			},
+			{
+				Location:       "burp castle new york ny",
+				TimePreference: nil,
+				Mandatory:      true,
+			},
+			{
+				Location:       "Holcombe Rucker Park",
+				TimePreference: nil,
+				Mandatory:      true,
+			},
+		},
+	}
+
+	jsonValue, err := json.Marshal(requestBody)
+	if err != nil {
+		t.Fatalf("Failed to marshal request body: %v", err)
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("http://localhost:%s/GenerateItinerary", port), bytes.NewBuffer(jsonValue))
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", os.Getenv("API_KEY"))
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("Request failed (is your server running?): %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected 200, got %d. Body: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Println(string(body))
 }
