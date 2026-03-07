@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -57,11 +61,17 @@ func main() {
 	}))
 	router.Use(apiKeyAuth())
 
+	//env
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	router.Run(":" + port)
+
+	pythonURL := os.Getenv("PYTHON_SERVICE_URL")
+	if pythonURL == "" {
+		pythonURL = "http://127.0.0.1:8000"
+	}
+	pythonURL = pythonURL + "/generate_route"
 
 	//old brute force google routing endpoint
 	router.POST("/GenerateRoute", func(context *gin.Context) {
@@ -109,7 +119,7 @@ func main() {
 
 		//parse frontend json
 
-		var stops []Address
+		var places []Address
 		var errors []string
 		var mapProvider maps.Provider = maps.GoogleMaps{}
 
@@ -119,10 +129,10 @@ func main() {
 			addr, err := mapProvider.AcquireAddress(location.Location)
 
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location, err))
+				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location.Location, err))
 				continue
 			}
-			stops = append(stops, Address{
+			places = append(places, Address{
 				Lat:              addr.Lat,
 				Lon:              addr.Lon,
 				Street:           addr.Street,
@@ -136,32 +146,51 @@ func main() {
 
 		//get edges between stops//
 
-		//setup data providers
+		//setup edge providers
 		walkingDataProvider := edges.GoogleMaps{}
-		carDataProvider := edges.GoogleMaps{}
-		subwayDataProvider := edges.GoogleMaps{}
+		// carDataProvider := edges.GoogleMaps{}
+		// subwayDataProvider := edges.GoogleMaps{}
 
 		//get edge weights for each transit mode
-		walkingEdges, err := walkingDataProvider.AcquireWalkingTravelTime(stops)
+		walkingEdges, err := walkingDataProvider.AcquireWalkingTravelTime(places)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("failed to acquire walking travel times: %v", err))
 		}
-		carEdges, err := carDataProvider.AcquireCarTravelTime(stops)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire car travel times: %v", err))
-		}
-		subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(stops)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
-		}
+		// carEdges, err := carDataProvider.AcquireCarTravelTime(places)
+		// if err != nil {
+		// 	errors = append(errors, fmt.Sprintf("failed to acquire car travel times: %v", err))
+		// }
+		// subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(places)
+		// if err != nil {
+		// 	errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
+		// }
 
 		//combine weights using david's part
 		//TODO
 
-		optimizedMatrices := CombineBestEdges(walkingEdges, carEdges, subwayEdges) //placeholder for now, just uses walking edges
+		//optimizedMatrices := CombineBestEdges(walkingEdges, carEdges, subwayEdges) //placeholder for now, just uses walking edges
+
+		optimizedMatrices := CombinedMatrices{
+			TimeMinutes: walkingEdges.Durations,             //placeholder, just uses walking times for now
+			CostDollars: make([][]int, len(places)),         //placeholder, just uses 0s for now since walking is free
+			Mode:        make([][]TransitType, len(places)), //placeholder, just uses "WALK" for now
+		}
+
+		for i := range optimizedMatrices.CostDollars {
+			optimizedMatrices.CostDollars[i] = make([]int, len(optimizedMatrices.CostDollars[i]))
+			for j := range optimizedMatrices.CostDollars[i] {
+				optimizedMatrices.CostDollars[i][j] = 50 + rand.Intn(375)
+			}
+		}
+
+		for i := range optimizedMatrices.Mode {
+			optimizedMatrices.Mode[i] = make([]TransitType, len(optimizedMatrices.Mode[i]))
+			for j := range optimizedMatrices.Mode[i] {
+				optimizedMatrices.Mode[i][j] = Walking
+			}
+		}
 
 		//create python payload
-
 		var solverNodes []SolverNode
 
 		for i, stop := range ItineraryReq.Stops {
@@ -194,9 +223,9 @@ func main() {
 
 			node := SolverNode{
 				ID:                fmt.Sprintf("%d", i),
-				Name:              stops[i].PlaceName,
-				Latitude:          stops[i].Lat,
-				Longitude:         stops[i].Lon,
+				Name:              places[i].PlaceName,
+				Latitude:          places[i].Lat,
+				Longitude:         places[i].Lon,
 				DurationInMinutes: 90,              //PLACEHOLDER
 				TimeWindowStart:   timeWindowStart, //fix?
 				TimeWindowEnd:     timeWindowEnd,   //fix
@@ -221,12 +250,47 @@ func main() {
 
 		//send python payload
 
+		pythonClient := &http.Client{Timeout: 10 * time.Second}
+
+		pythonJSON, err := json.Marshal(solverInput)
+		if err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to marshal solver input: %v", err)})
+			return
+		}
+
+		pythonReq, err := http.NewRequest("POST", pythonURL, bytes.NewBuffer(pythonJSON))
+		if err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create request: %v", err)})
+			return
+		}
+		pythonReq.Header.Set("Content-Type", "application/json")
+
+		pythonResp, err := pythonClient.Do(pythonReq)
+		if err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to reach python service: %v", err)})
+			return
+		}
+		defer pythonResp.Body.Close()
+
+		if pythonResp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(pythonResp.Body)
+			context.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("python service returned %d: %s", pythonResp.StatusCode, string(body)),
+			})
+			return
+		}
+
 		//parse python response
+		var solverOutput SolverOutput
+		if err := json.NewDecoder(pythonResp.Body).Decode(&solverOutput); err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to decode python response: %v", err)})
+			return
+		}
 
 		//process python response with post processor
 		PostProcessorInput := PostProcessorInput{
 			SolverInput:       solverInput,
-			SolverOutput:      SolverOutput{},                //TODO get real output from python
+			SolverOutput:      solverOutput,                  //TODO get real output from python
 			StopMap:           make(map[int]Address),         //TODO make stopmap that maps stop indices to their address for post processor
 			TransitTypeMatrix: optimizedMatrices.Mode,        //TODO get from david
 			TransitCostMatrix: optimizedMatrices.CostDollars, //TODO get from david
@@ -243,6 +307,7 @@ func main() {
 		context.JSON(http.StatusOK, itinerary)
 	})
 
+	router.Run(":" + port)
 }
 
 // turn 09:00 AM to 540
