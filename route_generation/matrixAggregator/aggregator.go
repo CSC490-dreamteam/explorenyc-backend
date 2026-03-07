@@ -1,4 +1,4 @@
-package matrixAggregator
+package matrixaggregator
 
 import (
 	"fmt"

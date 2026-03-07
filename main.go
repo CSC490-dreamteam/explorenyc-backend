@@ -18,7 +18,7 @@ import (
 	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/edges"
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
-	matrixAggregator "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/matrixaggregator"
+	matrixaggregator "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/matrixaggregator"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
 	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/postprocessing"
 )
@@ -185,7 +185,7 @@ func main() {
 			CarCostPerKilometerCents: 50,
 		}
 
-		optimizedMatrices, err := matrixAggregator.CombineBestEdges(walkingEdges, carEdges, subwayEdges, transitconfig)
+		optimizedMatrices, err := matrixaggregator.CombineBestEdges(walkingEdges, carEdges, subwayEdges, transitconfig)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("failed to combine best edges: %v", err))
 		}
