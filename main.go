@@ -312,6 +312,7 @@ func main() {
 		pythonReq, err := http.NewRequest("POST", pythonURL, bytes.NewBuffer(pythonJSON))
 		if err != nil {
 			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create request: %v", err)})
+			fmt.Printf("failed to create request: %v", err)
 			return
 		}
 		pythonReq.Header.Set("Content-Type", "application/json")
@@ -319,6 +320,7 @@ func main() {
 		pythonResp, err := pythonClient.Do(pythonReq)
 		if err != nil {
 			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to reach python service: %v", err)})
+			fmt.Printf("failed to reach python service: %v", err)
 			return
 		}
 		defer pythonResp.Body.Close()
