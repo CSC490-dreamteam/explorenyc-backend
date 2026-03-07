@@ -24,8 +24,8 @@ type Address struct {
 
 type EdgeWeights struct {
 	Nodes     []Address
-	Durations [][]int // travel times in minutes
-	Distances [][]int // travel distances in meters
+	Durations [][]int // travel times in minutes both ways: A -> B as well as B -> A, since they may differ
+	Distances [][]int // travel distances in meters both ways: A -> B as well as B -> A, since they may differ
 }
 
 // ---------------- Matrix Aggregator Models  ----------------
@@ -219,5 +219,4 @@ type SolverOutput struct {
 	TotalTimeInMinutes int          `json:"total_time_in_minutes"`
 	TotalCostInCents   int          `json:"total_cost_in_cents"`
 	Score              int          `json:"score"`
-	HasSolution        bool         `json:"has_solution"`
-}
+
