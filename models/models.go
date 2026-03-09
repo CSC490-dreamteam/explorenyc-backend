@@ -115,7 +115,9 @@ type Itinerary struct {
 type StopRequest struct {
 	Location       string  `json:"location"`
 	Mandatory      bool    `json:"mandatory"`
-	TimePreference *string `json:"timePreference"` //pointer so it can be null?
+	DurationMinutes int    `json:"durationMinutes"` //Added durations for each stop
+	//commented out TimePreferences since you said "DONT ADD TRANSPORTATION OR PREFERENCES or buffer"
+	//TimePreference *string `json:"timePreference"` //pointer so it can be null?
 }
 
 type ItineraryRequest struct {
