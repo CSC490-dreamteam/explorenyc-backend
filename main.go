@@ -349,8 +349,6 @@ func main() {
 
 		fmt.Printf("Solver output: %+v\n", solverOutput)
 
-		//TODO AMKE STRING TO TRANSIT TYPE ADAPTER
-
 		adaptedtransitTypeMatrix, err := ConvertModeMatrix(optimizedMatrices.Mode)
 		if err != nil {
 			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to convert mode matrix: %v", err)})
