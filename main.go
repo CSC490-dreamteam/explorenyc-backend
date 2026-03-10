@@ -156,8 +156,8 @@ func main() {
 		//get edges between stops//
 
 		//setup edge providers
-		walkingDataProvider := edges.GoogleMaps{}
-		carDataProvider := edges.GoogleMaps{}
+		walkingDataProvider := edges.Mapbox{}
+		carDataProvider := edges.Mapbox{}
 		subwayDataProvider := edges.GoogleMaps{}
 
 		//get edge weights for each transit mode
