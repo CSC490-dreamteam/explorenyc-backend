@@ -386,7 +386,7 @@ func parseTimeIntoMinutes(timeStr string) int {
 		}
 	}
 
-	fmt.Errorf("invalid time format: %s", timeStr)
+	fmt.Printf("invalid time format: %s", timeStr)
 	return -1
 }
 

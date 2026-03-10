@@ -15,21 +15,20 @@ import (
 
 type GoogleMaps struct{}
 
-
-func (g GoogleMaps) AcquireWalkingTravelTime(stops []Address) (EdgeWeights, error) {
-	return g.acquireTravelTime(stops, "walking")
+func (g GoogleMaps) AcquireWalkingTravelTime(Addrs []Address) (EdgeWeights, error) {
+	return g.acquireTravelTime(Addrs, "walking")
 }
 
-func (g GoogleMaps) AcquireCarTravelTime(stops []Address) (EdgeWeights, error) {
-	return g.acquireTravelTime(stops, "car")
+func (g GoogleMaps) AcquireCarTravelTime(Addrs []Address) (EdgeWeights, error) {
+	return g.acquireTravelTime(Addrs, "car")
 }
 
-func (g GoogleMaps) AcquireSubwayTravelTime(stops []Address) (EdgeWeights, error) {
-	return g.acquireTravelTime(stops, "subway")
+func (g GoogleMaps) AcquireSubwayTravelTime(Addrs []Address) (EdgeWeights, error) {
+	return g.acquireTravelTime(Addrs, "subway")
 }
 
 // generic function to get travel time for any transit mode, API is mostly the same with tiny diffs
-func (g GoogleMaps) acquireTravelTime(stops []Address, transitMode string) (EdgeWeights, error) {
+func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (EdgeWeights, error) {
 	const endpoint = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
 	apiKey := os.Getenv("GOOGLE_MAPS_ROUTES_API_KEY")
 
@@ -38,8 +37,8 @@ func (g GoogleMaps) acquireTravelTime(stops []Address, transitMode string) (Edge
 	}
 
 	//make "waypoints". how google wants the stops formatted for the API
-	waypoints := make([]map[string]interface{}, len(stops))
-	for i, stop := range stops {
+	waypoints := make([]map[string]interface{}, len(Addrs))
+	for i, stop := range Addrs {
 		waypoints[i] = map[string]interface{}{
 			"waypoint": map[string]interface{}{
 				"location": map[string]interface{}{
@@ -119,7 +118,7 @@ func (g GoogleMaps) acquireTravelTime(stops []Address, transitMode string) (Edge
 	}
 
 	// make N by N matrices
-	n := len(stops)
+	n := len(Addrs)
 	durations := make([][]int, n)
 	distances := make([][]int, n)
 
@@ -150,9 +149,8 @@ func (g GoogleMaps) acquireTravelTime(stops []Address, transitMode string) (Edge
 	}
 
 	return EdgeWeights{
-		Nodes:     stops,
+		Nodes:     Addrs,
 		Distances: distances,
 		Durations: durations,
 	}, nil
 }
-
