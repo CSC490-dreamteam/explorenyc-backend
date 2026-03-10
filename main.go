@@ -234,6 +234,12 @@ func main() {
 			DropPenalty:       0,
 		})
 
+		//map each place to its index for the post processor to use later when it gets the python output
+		addressMapping := make(map[int]Address)
+		for i, place := range places {
+			addressMapping[i] = place
+		}
+
 		for i, stop := range ItineraryReq.Stops {
 			//todo create string id or osmething
 
@@ -343,8 +349,6 @@ func main() {
 
 		fmt.Printf("Solver output: %+v\n", solverOutput)
 
-		//TODO AMKE STRING TO TRANSIT TYPE ADAPTER
-
 		adaptedtransitTypeMatrix, err := ConvertModeMatrix(optimizedMatrices.Mode)
 		if err != nil {
 			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to convert mode matrix: %v", err)})
@@ -354,10 +358,10 @@ func main() {
 		//process python response with post processor
 		PostProcessorInput := PostProcessorInput{
 			SolverInput:       solverInput,
-			SolverOutput:      solverOutput,                //TODO get real output from python
-			StopMap:           make(map[int]Address),       //TODO make stopmap that maps stop indices to their address for post processor
-			TransitTypeMatrix: adaptedtransitTypeMatrix,    //TODO get from david
-			TransitCostMatrix: optimizedMatrices.CostCents, //TODO get from david
+			SolverOutput:      solverOutput,
+			StopMap:           addressMapping,
+			TransitTypeMatrix: adaptedtransitTypeMatrix,
+			TransitCostMatrix: optimizedMatrices.CostCents,
 		}
 
 		itinerary, err := postprocessing.ProcessRouteResponse(PostProcessorInput)
