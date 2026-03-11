@@ -104,7 +104,7 @@ func main() {
 		bestPath := pathfinders.BruteForcePathFinderWithDistance(stops)
 		url := maps.GetGoogleMapsRouteExportURL(bestPath)
 
-		for err := range errors {
+		for _, err := range errors {
 			fmt.Printf("Error: %s\n", err)
 		}
 
@@ -253,8 +253,8 @@ func main() {
 			//set time window for that specific node for when arrival time can be set
 			if stop.TimePreference != nil {
 				preferred := parseTimeIntoMinutes(*stop.TimePreference)
-				timeWindowStart = preferred - 120 //120 min before preferred arrival time
-				timeWindowEnd = preferred - 2     //
+				timeWindowStart = preferred - 30 //30 min before preferred arrival time
+				timeWindowEnd = preferred - 2    //
 			} else {
 				// no preference = anytime during the day is fine
 				timeWindowStart = parseTimeIntoMinutes(ItineraryReq.EntryTime)
