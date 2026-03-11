@@ -47,7 +47,21 @@ func (g GoogleMaps) AcquireAddress(query string) (Address, error) {
 	}
 
 	//build JSON request body
-	requestBody, err := json.Marshal(map[string]string{"textQuery": query})
+	requestBody, err := json.Marshal(map[string]interface{}{
+		"textQuery": query + ", Manhattan, NY", //append manhattan ny so we dont go to seattle
+		"locationRestriction": map[string]interface{}{
+			"rectangle": map[string]interface{}{
+				"low": map[string]float64{ //bounding box as insurance, it does bleed into brooklyn sadly
+					"latitude":  40.6980,  // Bottom of Manhattan (Battery Park area)
+					"longitude": -74.0250, // West side (Hudson River)
+				},
+				"high": map[string]float64{
+					"latitude":  40.8770,  // Top of Manhattan (Inwood area)
+					"longitude": -73.9000, // East side (East River / Roosevelt Island)
+				},
+			},
+		},
+	})
 	if err != nil {
 		return Address{}, fmt.Errorf("failed to marshal request: %w", err)
 	}
