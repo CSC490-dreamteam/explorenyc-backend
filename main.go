@@ -104,6 +104,10 @@ func main() {
 		bestPath := pathfinders.BruteForcePathFinderWithDistance(stops)
 		url := maps.GetGoogleMapsRouteExportURL(bestPath)
 
+		for err := range errors {
+			fmt.Printf("Error: %s\n", err)
+		}
+
 		context.JSON(http.StatusOK, RouteResponse{
 			URL:    url,
 			Errors: errors,
