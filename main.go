@@ -125,7 +125,7 @@ func main() {
 		//parse frontend json
 
 		var places []Address
-		var errors []string
+		var errors []error
 		var mapProvider maps.Provider = maps.GoogleMaps{}
 
 		//insert start location
@@ -142,7 +142,7 @@ func main() {
 			addr, err := mapProvider.AcquireAddress(location.Location)
 
 			if err != nil {
-				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location.Location, err))
+				errors = append(errors, fmt.Errorf("could not resolve '%s': %v", location.Location, err))
 				continue
 			}
 			places = append(places, Address{
@@ -167,15 +167,15 @@ func main() {
 		//get edge weights for each transit mode
 		walkingEdges, err := walkingDataProvider.AcquireWalkingTravelTime(places)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire walking travel times: %v", err))
+			errors = append(errors, fmt.Errorf("failed to acquire walking travel times: %v", err))
 		}
 		carEdges, err := carDataProvider.AcquireCarTravelTime(places)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire car travel times: %v", err))
+			errors = append(errors, fmt.Errorf("failed to acquire car travel times: %v", err))
 		}
 		subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(places)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
+			errors = append(errors, fmt.Errorf("failed to acquire subway travel times: %v", err))
 		}
 
 		fmt.Println("Edge Weights acquired")
@@ -194,7 +194,7 @@ func main() {
 
 		optimizedMatrices, err := matrixaggregator.CombineBestEdges(walkingEdges, carEdges, subwayEdges, transitconfig)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to combine best edges: %v", err))
+			errors = append(errors, fmt.Errorf("failed to combine best edges: %v", err))
 		}
 
 		fmt.Println("Matrices Combined")
@@ -377,6 +377,11 @@ func main() {
 		if err != nil {
 			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to process route response: %v", err)})
 			return
+		}
+
+		//print out errors
+		for _, err := range errors {
+			fmt.Printf("Error: %v\n", err)
 		}
 
 		//send out the itinerary to the frontend
