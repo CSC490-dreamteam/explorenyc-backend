@@ -178,6 +178,8 @@ func main() {
 			errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
 		}
 
+		fmt.Println("Edge Weights acquired")
+
 		//combine weights using david's part
 
 		transitconfig := CombineConfig{
@@ -194,6 +196,8 @@ func main() {
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("failed to combine best edges: %v", err))
 		}
+
+		fmt.Println("Matrices Combined")
 
 		// walkingMinutes := make([][]int, len(walkingEdges.Durations))
 		// for i := range walkingEdges.Durations {
