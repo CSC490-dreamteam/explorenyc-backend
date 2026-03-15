@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -159,23 +160,44 @@ func main() {
 
 		//get edges between stops//
 
+		//setup concurrency
+		var edgeWeigthGroup sync.WaitGroup
+		var walkingEdges, carEdges, subwayEdges EdgeWeights
+		var walkingErr, carErr, subwayErr error
+
 		//setup edge providers
 		walkingDataProvider := edges.Mapbox{}
 		carDataProvider := edges.Mapbox{}
 		subwayDataProvider := edges.GoogleMaps{}
 
-		//get edge weights for each transit mode
-		walkingEdges, err := walkingDataProvider.AcquireWalkingTravelTime(places)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to acquire walking travel times: %v", err))
+		edgeWeigthGroup.Add(3)
+
+		go func() {
+			defer edgeWeigthGroup.Done()
+			walkingEdges, walkingErr = walkingDataProvider.AcquireWalkingTravelTime(places)
+		}()
+
+		go func() {
+			defer edgeWeigthGroup.Done()
+			carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
+		}()
+
+		go func() {
+			defer edgeWeigthGroup.Done()
+			subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
+		}()
+
+		edgeWeigthGroup.Wait()
+
+		//qacquire edgeweight errors after concurrency is done
+		if walkingErr != nil {
+			errors = append(errors, fmt.Errorf("failed to acquire walking travel times: %v", walkingErr))
 		}
-		carEdges, err := carDataProvider.AcquireCarTravelTime(places)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to acquire car travel times: %v", err))
+		if carErr != nil {
+			errors = append(errors, fmt.Errorf("failed to acquire car travel times: %v", carErr))
 		}
-		subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(places)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to acquire subway travel times: %v", err))
+		if subwayErr != nil {
+			errors = append(errors, fmt.Errorf("failed to acquire subway travel times: %v", subwayErr))
 		}
 
 		fmt.Println("Edge Weights acquired")
