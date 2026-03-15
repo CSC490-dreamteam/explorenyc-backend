@@ -135,7 +135,39 @@ func main() {
 			context.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("could not resolve start location '%s': %v", ItineraryReq.StartLocation, err)})
 			return
 		}
-		places = append(places, startAddr)
+
+		//prep places for concurrency
+		numStops := len(ItineraryReq.Stops)
+		places = make([]Address, numStops+1) // +1 for the start location
+		places[0] = startAddr
+		stopErrors := make([]error, numStops)
+
+		var stopGroup sync.WaitGroup
+		stopGroup.Add(numStops)
+
+		//concurrently iterate through stops and acquire addresses, storing errors in a separate slice
+		for i, stop := range ItineraryReq.Stops {
+			go func(index int, location string) {
+				defer stopGroup.Done()
+
+				addr, err := mapProvider.AcquireAddress(location)
+				if err != nil {
+					stopErrors[index] = fmt.Errorf("could not resolve '%s': %v", location, err)
+					return
+				}
+
+				places[index+1] = addr
+			}(i, stop.Location)
+		}
+
+		stopGroup.Wait()
+
+		//append stop errors to main errors slice after concurrency is done
+		for _, e := range stopErrors {
+			if e != nil {
+				errors = append(errors, e)
+			}
+		}
 
 		//get location data for each stop requested
 		for _, location := range ItineraryReq.Stops {
