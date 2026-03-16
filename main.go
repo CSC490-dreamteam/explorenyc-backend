@@ -272,7 +272,7 @@ func main() {
 			if stop.TimePreference != nil {
 				preferred := parseTimeIntoMinutes(*stop.TimePreference)
 				timeWindowStart = preferred - 30 //30 min before preferred arrival time
-				timeWindowEnd = preferred - 2    //
+				timeWindowEnd = preferred - 5    //5 min before actual time
 			} else {
 				// no preference = anytime during the day is fine
 				timeWindowStart = parseTimeIntoMinutes(ItineraryReq.EntryTime)
