@@ -413,6 +413,10 @@ func main() {
 // turn 09:00 AM to 540
 func parseTimeIntoMinutes(timeStr string) int {
 	timeStr = strings.TrimSpace(timeStr)
+	timeStr = strings.ToUpper(timeStr)
+	timeStr = strings.ReplaceAll(timeStr, "AM", " AM")
+	timeStr = strings.ReplaceAll(timeStr, "PM", " PM")
+	timeStr = strings.TrimSpace(timeStr)
 	layouts := []string{"3:04 PM", "15:04", "15:04:05"}
 
 	for _, layout := range layouts {
