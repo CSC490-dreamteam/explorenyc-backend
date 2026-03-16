@@ -169,27 +169,6 @@ func main() {
 			}
 		}
 
-		//get location data for each stop requested
-		for _, location := range ItineraryReq.Stops {
-
-			addr, err := mapProvider.AcquireAddress(location.Location)
-
-			if err != nil {
-				errors = append(errors, fmt.Errorf("could not resolve '%s': %v", location.Location, err))
-				continue
-			}
-			places = append(places, Address{
-				Lat:              addr.Lat,
-				Lon:              addr.Lon,
-				Street:           addr.Street,
-				City:             addr.City,
-				State:            addr.State,
-				Zip:              addr.Zip,
-				PlaceName:        addr.PlaceName,
-				FormattedAddress: addr.FormattedAddress,
-			})
-		}
-
 		//get edges between stops//
 
 		//setup concurrency
@@ -211,25 +190,33 @@ func main() {
 
 		go func() {
 			defer edgeWeigthGroup.Done()
-			carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
+			subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
 		}()
 
 		go func() {
 			defer edgeWeigthGroup.Done()
-			subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
+			carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
 		}()
 
 		edgeWeigthGroup.Wait()
 
-		//qacquire edgeweight errors after concurrency is done
-		if walkingErr != nil {
-			errors = append(errors, fmt.Errorf("failed to acquire walking travel times: %v", walkingErr))
-		}
-		if carErr != nil {
-			errors = append(errors, fmt.Errorf("failed to acquire car travel times: %v", carErr))
-		}
-		if subwayErr != nil {
-			errors = append(errors, fmt.Errorf("failed to acquire subway travel times: %v", subwayErr))
+		//acquire edgeweight errors after concurrency is done
+		if walkingErr != nil || subwayErr != nil || carErr != nil {
+			var errs []string
+			if walkingErr != nil {
+				errs = append(errs, fmt.Sprintf("failed to acquire walking travel times: %v", walkingErr))
+			}
+			if subwayErr != nil {
+				errs = append(errs, fmt.Sprintf("failed to acquire subway travel times: %v", subwayErr))
+			}
+			if carErr != nil {
+				errs = append(errs, fmt.Sprintf("failed to acquire car travel times: %v", carErr))
+			}
+
+			context.JSON(http.StatusInternalServerError, gin.H{
+				"errors": errs,
+			})
+			return
 		}
 
 		fmt.Println("Edge Weights acquired")
@@ -246,40 +233,13 @@ func main() {
 			CarCostPerKilometerCents: 50,
 		}
 
-		optimizedMatrices, err := matrixaggregator.CombineBestEdges(walkingEdges, carEdges, subwayEdges, transitconfig)
+		optimizedMatrices, err := matrixaggregator.CombineBestEdges(walkingEdges, subwayEdges, carEdges, transitconfig)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("failed to combine best edges: %v", err))
+			fmt.Println("combining error")
 		}
 
 		fmt.Println("Matrices Combined")
-
-		// walkingMinutes := make([][]int, len(walkingEdges.Durations))
-		// for i := range walkingEdges.Durations {
-		// 	walkingMinutes[i] = make([]int, len(walkingEdges.Durations[i]))
-		// 	for j := range walkingEdges.Durations[i] {
-		// 		walkingMinutes[i][j] = walkingEdges.Durations[i][j] / 60
-		// 	}
-		// }
-
-		// optimizedMatrices := CombinedMatrices{
-		// 	TimeMinutes: walkingMinutes,                     //placeholder, just uses walking times for now
-		// 	CostCents: make([][]int, len(places)),         //placeholder, just uses 0s for now since walking is free
-		// 	Mode:        make([][]string, len(places)), //placeholder, just uses "WALK" for now
-		// }
-
-		// for i := range optimizedMatrices.CostCents {
-		// 	optimizedMatrices.CostCents[i] = make([]int, len(places))
-		// 	for j := range optimizedMatrices.CostCents[i] {
-		// 		optimizedMatrices.CostCents[i][j] = 50 + rand.Intn(375)
-		// 	}
-		// }
-
-		// for i := range optimizedMatrices.Mode {
-		// 	optimizedMatrices.Mode[i] = make([]string, len(places))
-		// 	for j := range optimizedMatrices.Mode[i] {
-		// 		optimizedMatrices.Mode[i][j] = Walking
-		// 	}
-		// }
 
 		//create python payload
 		var solverNodes []SolverNode
@@ -434,8 +394,12 @@ func main() {
 		}
 
 		//print out errors
-		for _, err := range errors {
-			fmt.Printf("Error: %v\n", err)
+		if len(errors) > 0 {
+			context.JSON(http.StatusOK, gin.H{
+				"warnings":  fmt.Sprintf("itinerary generated with the following warnings: %v", errors),
+				"itinerary": itinerary,
+			})
+			return
 		}
 
 		//send out the itinerary to the frontend
