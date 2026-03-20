@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -125,7 +126,7 @@ func main() {
 		//parse frontend json
 
 		var places []Address
-		var errors []string
+		var errors []error
 		var mapProvider maps.Provider = maps.GoogleMaps{}
 
 		//insert start location
@@ -134,48 +135,88 @@ func main() {
 			context.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("could not resolve start location '%s': %v", ItineraryReq.StartLocation, err)})
 			return
 		}
-		places = append(places, startAddr)
 
-		//get location data for each stop requested
-		for _, location := range ItineraryReq.Stops {
+		//prep places for concurrency
+		numStops := len(ItineraryReq.Stops)
+		places = make([]Address, numStops+1) // +1 for the start location
+		places[0] = startAddr
+		stopErrors := make([]error, numStops)
 
-			addr, err := mapProvider.AcquireAddress(location.Location)
+		var stopGroup sync.WaitGroup
+		stopGroup.Add(numStops)
 
-			if err != nil {
-				errors = append(errors, fmt.Sprintf("could not resolve '%s': %v", location.Location, err))
-				continue
+		//concurrently iterate through stops and acquire addresses, storing errors in a separate slice
+		for i, stop := range ItineraryReq.Stops {
+			go func(index int, location string) {
+				defer stopGroup.Done()
+
+				addr, err := mapProvider.AcquireAddress(location)
+				if err != nil {
+					stopErrors[index] = fmt.Errorf("could not resolve '%s': %v", location, err)
+					return
+				}
+
+				places[index+1] = addr
+			}(i, stop.Location)
+		}
+
+		stopGroup.Wait()
+
+		//append stop errors to main errors slice after concurrency is done
+		for _, e := range stopErrors {
+			if e != nil {
+				errors = append(errors, e)
 			}
-			places = append(places, Address{
-				Lat:              addr.Lat,
-				Lon:              addr.Lon,
-				Street:           addr.Street,
-				City:             addr.City,
-				State:            addr.State,
-				Zip:              addr.Zip,
-				PlaceName:        addr.PlaceName,
-				FormattedAddress: addr.FormattedAddress,
-			})
 		}
 
 		//get edges between stops//
+
+		//setup concurrency
+		var edgeWeigthGroup sync.WaitGroup
+		var walkingEdges, carEdges, subwayEdges EdgeWeights
+		var walkingErr, carErr, subwayErr error
 
 		//setup edge providers
 		walkingDataProvider := edges.Mapbox{}
 		carDataProvider := edges.Mapbox{}
 		subwayDataProvider := edges.GoogleMaps{}
 
-		//get edge weights for each transit mode
-		walkingEdges, err := walkingDataProvider.AcquireWalkingTravelTime(places)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire walking travel times: %v", err))
-		}
-		carEdges, err := carDataProvider.AcquireCarTravelTime(places)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire car travel times: %v", err))
-		}
-		subwayEdges, err := subwayDataProvider.AcquireSubwayTravelTime(places)
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to acquire subway travel times: %v", err))
+		edgeWeigthGroup.Add(3)
+
+		go func() {
+			defer edgeWeigthGroup.Done()
+			walkingEdges, walkingErr = walkingDataProvider.AcquireWalkingTravelTime(places)
+		}()
+
+		go func() {
+			defer edgeWeigthGroup.Done()
+			subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
+		}()
+
+		go func() {
+			defer edgeWeigthGroup.Done()
+			carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
+		}()
+
+		edgeWeigthGroup.Wait()
+
+		//acquire edgeweight errors after concurrency is done
+		if walkingErr != nil || subwayErr != nil || carErr != nil {
+			var errs []string
+			if walkingErr != nil {
+				errs = append(errs, fmt.Sprintf("failed to acquire walking travel times: %v", walkingErr))
+			}
+			if subwayErr != nil {
+				errs = append(errs, fmt.Sprintf("failed to acquire subway travel times: %v", subwayErr))
+			}
+			if carErr != nil {
+				errs = append(errs, fmt.Sprintf("failed to acquire car travel times: %v", carErr))
+			}
+
+			context.JSON(http.StatusInternalServerError, gin.H{
+				"errors": errs,
+			})
+			return
 		}
 
 		fmt.Println("Edge Weights acquired")
@@ -192,40 +233,13 @@ func main() {
 			CarCostPerKilometerCents: 50,
 		}
 
-		optimizedMatrices, err := matrixaggregator.CombineBestEdges(walkingEdges, carEdges, subwayEdges, transitconfig)
+		optimizedMatrices, err := matrixaggregator.CombineBestEdges(walkingEdges, subwayEdges, carEdges, transitconfig)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("failed to combine best edges: %v", err))
+			errors = append(errors, fmt.Errorf("failed to combine best edges: %v", err))
+			fmt.Println("combining error")
 		}
 
 		fmt.Println("Matrices Combined")
-
-		// walkingMinutes := make([][]int, len(walkingEdges.Durations))
-		// for i := range walkingEdges.Durations {
-		// 	walkingMinutes[i] = make([]int, len(walkingEdges.Durations[i]))
-		// 	for j := range walkingEdges.Durations[i] {
-		// 		walkingMinutes[i][j] = walkingEdges.Durations[i][j] / 60
-		// 	}
-		// }
-
-		// optimizedMatrices := CombinedMatrices{
-		// 	TimeMinutes: walkingMinutes,                     //placeholder, just uses walking times for now
-		// 	CostCents: make([][]int, len(places)),         //placeholder, just uses 0s for now since walking is free
-		// 	Mode:        make([][]string, len(places)), //placeholder, just uses "WALK" for now
-		// }
-
-		// for i := range optimizedMatrices.CostCents {
-		// 	optimizedMatrices.CostCents[i] = make([]int, len(places))
-		// 	for j := range optimizedMatrices.CostCents[i] {
-		// 		optimizedMatrices.CostCents[i][j] = 50 + rand.Intn(375)
-		// 	}
-		// }
-
-		// for i := range optimizedMatrices.Mode {
-		// 	optimizedMatrices.Mode[i] = make([]string, len(places))
-		// 	for j := range optimizedMatrices.Mode[i] {
-		// 		optimizedMatrices.Mode[i][j] = Walking
-		// 	}
-		// }
 
 		//create python payload
 		var solverNodes []SolverNode
@@ -258,7 +272,7 @@ func main() {
 			if stop.TimePreference != nil {
 				preferred := parseTimeIntoMinutes(*stop.TimePreference)
 				timeWindowStart = preferred - 30 //30 min before preferred arrival time
-				timeWindowEnd = preferred - 2    //
+				timeWindowEnd = preferred - 5    //5 min before actual time
 			} else {
 				// no preference = anytime during the day is fine
 				timeWindowStart = parseTimeIntoMinutes(ItineraryReq.EntryTime)
@@ -379,6 +393,15 @@ func main() {
 			return
 		}
 
+		//print out errors
+		if len(errors) > 0 {
+			context.JSON(http.StatusOK, gin.H{
+				"warnings":  fmt.Sprintf("itinerary generated with the following warnings: %v", errors),
+				"itinerary": itinerary,
+			})
+			return
+		}
+
 		//send out the itinerary to the frontend
 		context.JSON(http.StatusOK, itinerary)
 	})
@@ -389,6 +412,10 @@ func main() {
 
 // turn 09:00 AM to 540
 func parseTimeIntoMinutes(timeStr string) int {
+	timeStr = strings.TrimSpace(timeStr)
+	timeStr = strings.ToUpper(timeStr)
+	timeStr = strings.ReplaceAll(timeStr, "AM", " AM")
+	timeStr = strings.ReplaceAll(timeStr, "PM", " PM")
 	timeStr = strings.TrimSpace(timeStr)
 	layouts := []string{"3:04 PM", "15:04", "15:04:05"}
 
