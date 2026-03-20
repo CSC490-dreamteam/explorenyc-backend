@@ -5,6 +5,6 @@ import (
 )
 
 // template for map data providers
-type Provider interface {
+type QueryProvider interface {
 	AcquireAddress(query string) (Address, error)
 }

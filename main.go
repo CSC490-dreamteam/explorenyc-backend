@@ -85,7 +85,7 @@ func main() {
 
 		var stops []Stop
 		var errors []string
-		var mapProvider maps.Provider = maps.GoogleMaps{}
+		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
 
 		for _, location := range req.Locations {
 
@@ -127,7 +127,7 @@ func main() {
 
 		var places []Address
 		var errors []error
-		var mapProvider maps.Provider = maps.GoogleMaps{}
+		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
 
 		//insert start location
 		startAddr, err := mapProvider.AcquireAddress(ItineraryReq.StartLocation)

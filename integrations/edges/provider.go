@@ -27,3 +27,7 @@ type BikeMatrixProvider interface {
 	//retrieves matrices of travel times between addresses, used for edge generation
 	AcquireBikeTravelTime(addrs []Address) (EdgeWeights, error)
 }
+
+type SubwayLegProvider interface {
+	AcquireSubwayLegs(origin Address, destination Address) ([]Leg, error)
+}

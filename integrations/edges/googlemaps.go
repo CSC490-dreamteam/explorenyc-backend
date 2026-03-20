@@ -154,3 +154,8 @@ func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (Edge
 		Durations: durations,
 	}, nil
 }
+
+func (g GoogleMaps) AcquireSubwayLegs(origin Address, destination Address) ([]Leg, error) {
+	// Placeholder implementation - replace with actual subway leg acquisition logic
+	return []Leg{}, nil
+}
