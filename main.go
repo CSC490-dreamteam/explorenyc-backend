@@ -300,9 +300,9 @@ func main() {
 				Name:              places[i+1].PlaceName,
 				Latitude:          places[i+1].Lat,
 				Longitude:         places[i+1].Lon,
-				DurationInMinutes: 35,              //PLACEHOLDER time spent at that location
-				TimeWindowStart:   timeWindowStart, //fix?
-				TimeWindowEnd:     timeWindowEnd,   //fix
+				DurationInMinutes: ItineraryReq.Stops[i].Duration, //dwell time at the stop, NOT i+1 on purpose
+				TimeWindowStart:   timeWindowStart,                //fix?
+				TimeWindowEnd:     timeWindowEnd,                  //fix
 				Priority:          prio,
 				DropPenalty:       dropPenalty,
 			}
