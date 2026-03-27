@@ -122,41 +122,25 @@ func TestLocalGenerateItinerary(t *testing.T) {
 				Location:       "Times Square",
 				TimePreference: nil,
 				Mandatory:      true,
+				Duration:       60, //spend an hour there
 			},
 			{
 				Location:       "Central Park",
 				TimePreference: inputTime("4:00 PM"),
 				Mandatory:      true,
+				Duration:       60, //spend an hour there
 			},
 			{
 				Location:       "burp castle new york ny",
 				TimePreference: nil,
 				Mandatory:      true,
+				Duration:       60, //spend an hour there
 			},
 			{
 				Location:       "Holcombe Rucker Park",
 				TimePreference: nil,
 				Mandatory:      true,
-			},
-			{
-				Location:       "dave and busters",
-				TimePreference: nil,
-				Mandatory:      true,
-			},
-			{
-				Location:       "tao",
-				TimePreference: nil,
-				Mandatory:      true,
-			},
-			{
-				Location:       "union league club",
-				TimePreference: nil,
-				Mandatory:      true,
-			},
-			{
-				Location:       "the tusk bar",
-				TimePreference: nil,
-				Mandatory:      true,
+				Duration:       130,
 			},
 		},
 	}
