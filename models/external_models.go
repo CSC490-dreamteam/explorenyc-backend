@@ -27,7 +27,7 @@ type StopRequest struct {
 	Location       string  `json:"location"`
 	Mandatory      bool    `json:"mandatory"`
 	TimePreference *string `json:"timePreference"` //pointer so it can be null?
-	Duration       int     `json:duration`         //how long you spend at the stop
+	Duration       int     `json:"duration"`       //how long you spend at the stop
 }
 
 type ItineraryRequest struct {
