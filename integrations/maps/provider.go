@@ -8,3 +8,7 @@ import (
 type QueryProvider interface {
 	AcquireAddress(query string) (Address, error)
 }
+
+type PolylineProvider interface {
+	//AcquireGEOJSON(query string) (GEOJSON, error)
+}
