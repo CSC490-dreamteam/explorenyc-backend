@@ -263,13 +263,21 @@ func (g GoogleMaps) AcquireSubwayLegs(origin Address, destination Address) ([]Le
 		// Parse duration like "120s" to int
 		durationStr := strings.TrimSuffix(step.StaticDuration, "s")
 		travelTime, _ := strconv.Atoi(durationStr)
+		travelTime = travelTime / 60 // seconds to minutes
 
-		legs = append(legs, Leg{
-			TransportTypes: transportType,
-			TravelTimes:    travelTime,
-			TransitCosts:   transitCosts,
-			Polyline:       step.Polyline.EncodedPolyline,
-		})
+		// merge with previous leg if same transport type
+		if len(legs) > 0 && legs[len(legs)-1].TransportTypes == transportType {
+			legs[len(legs)-1].TravelTimes += travelTime
+			legs[len(legs)-1].TransitCosts += transitCosts
+			legs[len(legs)-1].Polylines = append(legs[len(legs)-1].Polylines, step.Polyline.EncodedPolyline)
+		} else {
+			legs = append(legs, Leg{
+				TransportTypes: transportType,
+				TravelTimes:    travelTime,
+				TransitCosts:   transitCosts,
+				Polylines:      []string{step.Polyline.EncodedPolyline},
+			})
+		}
 	}
 
 	return legs, nil
