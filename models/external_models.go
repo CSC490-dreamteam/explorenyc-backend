@@ -13,7 +13,7 @@ type Leg struct {
 	TransportTypes TransitType
 	TravelTimes    int
 	TransitCosts   int
-	polyline       string //encoded polyline of the leg
+	Polyline       string //encoded polyline of the leg
 }
 
 type Itinerary struct {
