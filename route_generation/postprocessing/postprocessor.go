@@ -47,9 +47,9 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 			legs, err := GetSubwayLegs(edges.GoogleMaps{}, context, originAddr, destAddr)
 			if err != nil {
 				legs = []Leg{{
-					TransportTypes: Subway,
-					TravelTimes:    input.TravelTimeMatrix[fromIdx][toIdx],
-					TransitCosts:   transitcostmatrix[fromIdx][toIdx],
+					TransportType: Subway,
+					TravelTimes:   input.TravelTimeMatrix[fromIdx][toIdx],
+					TransitCosts:  transitcostmatrix[fromIdx][toIdx],
 				}}
 			}
 			subwayLegs[i] = legs
@@ -75,9 +75,9 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 				fromIdx := routeEntry.NodeIndex
 				toIdx := output.Route[i+1].NodeIndex
 				legs = []Leg{{
-					TransportTypes: transittypematrix[fromIdx][toIdx],
-					TravelTimes:    input.TravelTimeMatrix[fromIdx][toIdx],
-					TransitCosts:   transitcostmatrix[fromIdx][toIdx],
+					TransportType: transittypematrix[fromIdx][toIdx],
+					TravelTimes:   input.TravelTimeMatrix[fromIdx][toIdx],
+					TransitCosts:  transitcostmatrix[fromIdx][toIdx],
 				}}
 			}
 		}

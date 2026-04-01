@@ -31,3 +31,11 @@ type BikeMatrixProvider interface {
 type SubwayLegProvider interface {
 	AcquireSubwayLegs(origin Address, destination Address) ([]Leg, error)
 }
+
+type WalkingLegProvider interface {
+	AcquireWalkingLeg(origin Address, destination Address) (Leg, error)
+}
+
+type CarLegProvider interface {
+	AcquireCar(origin Address, destination Address) (Leg, error)
+}

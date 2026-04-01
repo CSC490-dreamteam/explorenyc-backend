@@ -10,10 +10,10 @@ type ItineraryEntry struct {
 }
 
 type Leg struct {
-	TransportTypes TransitType
-	TravelTimes    int
-	TransitCosts   int
-	Polylines      []string //encoded polyline of the leg
+	TransportType TransitType
+	TravelTimes   int
+	TransitCosts  int
+	Polylines     []string //encoded polyline of the leg
 }
 
 type Itinerary struct {
