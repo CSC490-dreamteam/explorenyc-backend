@@ -37,5 +37,5 @@ type WalkingLegProvider interface {
 }
 
 type CarLegProvider interface {
-	AcquireCar(origin Address, destination Address) (Leg, error)
+	AcquireCarLeg(origin Address, destination Address) (Leg, error)
 }

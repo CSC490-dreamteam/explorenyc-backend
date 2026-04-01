@@ -25,9 +25,11 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 		return Itinerary{}, fmt.Errorf("no solution found for given input, params are trash")
 	} //TODO, OUTPUT failure reason TO FRONTEND (forgot if this is even possible xd)
 
-	//get subway edges and get legs
+	//get transit edges and legs
 	subwayLegs := make([][]Leg, len(output.Route))
-	subwayGroup, context := errgroup.WithContext(context.Background())
+	walkingLegs := make([][]Leg, len(output.Route))
+	carLegs := make([][]Leg, len(output.Route))
+	group, context := errgroup.WithContext(context.Background())
 
 	for i := 0; i < len(output.Route)-1; i++ {
 		current := output.Route[i]
@@ -35,29 +37,56 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 		fromIdx := current.NodeIndex
 		toIdx := next.NodeIndex
 
-		if transittypematrix[fromIdx][toIdx] != Subway {
-			continue
-		}
+		transitType := transittypematrix[fromIdx][toIdx]
 		originAddr := addressmap[fromIdx]
 		destAddr := addressmap[toIdx]
 
-		//concurrently get legs
-		subwayGroup.Go(func() error {
-			//hardcode google for now
-			legs, err := GetSubwayLegs(edges.GoogleMaps{}, context, originAddr, destAddr)
-			if err != nil {
-				legs = []Leg{{
-					TransportType: Subway,
-					TravelTimes:   input.TravelTimeMatrix[fromIdx][toIdx],
-					TransitCosts:  transitcostmatrix[fromIdx][toIdx],
-				}}
-			}
-			subwayLegs[i] = legs
-			return nil
-		})
+		//concurrently get legs for all transit types
+		switch transitType {
+		case Subway:
+			group.Go(func() error {
+				legs, err := GetSubwayLegs(edges.GoogleMaps{}, context, originAddr, destAddr)
+				if err != nil {
+					legs = []Leg{{
+						TransportType: Subway,
+						TravelTimes:   input.TravelTimeMatrix[fromIdx][toIdx],
+						TransitCosts:  transitcostmatrix[fromIdx][toIdx],
+					}}
+				}
+				subwayLegs[i] = legs
+				return nil
+			})
+		case Walking:
+			group.Go(func() error {
+				leg, err := GetWalkingLeg(edges.Mapbox{}, context, originAddr, destAddr)
+				if err != nil {
+					fmt.Printf("Walking Error (idx %d): %v\n", i, err)
+					leg = Leg{
+						TransportType: Walking,
+						TravelTimes:   input.TravelTimeMatrix[fromIdx][toIdx],
+						TransitCosts:  transitcostmatrix[fromIdx][toIdx],
+					}
+				}
+				walkingLegs[i] = []Leg{leg}
+				return nil
+			})
+		case Car:
+			group.Go(func() error {
+				leg, err := GetCarLeg(edges.Mapbox{}, context, originAddr, destAddr)
+				if err != nil {
+					leg = Leg{
+						TransportType: Car,
+						TravelTimes:   input.TravelTimeMatrix[fromIdx][toIdx],
+						TransitCosts:  transitcostmatrix[fromIdx][toIdx],
+					}
+				}
+				carLegs[i] = []Leg{leg}
+				return nil
+			})
+		}
 	}
 
-	if err := subwayGroup.Wait(); err != nil {
+	if err := group.Wait(); err != nil {
 		return Itinerary{}, fmt.Errorf("failed to fetch subway legs: %w", err)
 	}
 
@@ -68,9 +97,14 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 
 		var legs []Leg
 
+		//maybe a better way to do this.. idk its 1AM lol
 		if i < len(output.Route)-1 {
 			if subwayLegs[i] != nil {
 				legs = subwayLegs[i]
+			} else if walkingLegs[i] != nil {
+				legs = walkingLegs[i]
+			} else if carLegs[i] != nil {
+				legs = carLegs[i]
 			} else {
 				fromIdx := routeEntry.NodeIndex
 				toIdx := output.Route[i+1].NodeIndex
@@ -118,4 +152,12 @@ func ProcessDroppedStops(stopmap map[int]Address, droppedStopIndices []int) []Ad
 
 func GetSubwayLegs(provider edges.SubwayLegProvider, ctx context.Context, origin Address, destination Address) ([]Leg, error) {
 	return provider.AcquireSubwayLegs(origin, destination)
+}
+
+func GetWalkingLeg(provider edges.WalkingLegProvider, ctx context.Context, origin Address, destination Address) (Leg, error) {
+	return provider.AcquireWalkingLeg(origin, destination)
+}
+
+func GetCarLeg(provider edges.CarLegProvider, ctx context.Context, origin Address, destination Address) (Leg, error) {
+	return provider.AcquireCarLeg(origin, destination)
 }

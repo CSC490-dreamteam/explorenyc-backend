@@ -161,9 +161,9 @@ func (m Mapbox) acquireLeg(origin Address, destination Address, transitType Tran
 	var directionsResponse struct {
 		Code   string `json:"code"`
 		Routes []struct {
-			Duration int `json:"duration"`
+			Duration float64 `json:"duration"`
+			Geometry string  `json:"geometry"`
 			Legs     []struct {
-				Geometry string `json:"geometry"`
 			} `json:"legs"`
 		} `json:"routes"`
 	}
@@ -181,15 +181,12 @@ func (m Mapbox) acquireLeg(origin Address, destination Address, transitType Tran
 	}
 
 	route := directionsResponse.Routes[0]
-	if len(route.Legs) == 0 {
-		return Leg{}, fmt.Errorf("no legs in route")
-	}
 
-	polyline := route.Legs[0].Geometry
+	polyline := route.Geometry
 
 	return Leg{
 		TransportType: transitType,
-		TravelTimes:   route.Duration,
+		TravelTimes:   int(route.Duration),
 		TransitCosts:  0,
 		Polylines:     []string{polyline},
 	}, nil
