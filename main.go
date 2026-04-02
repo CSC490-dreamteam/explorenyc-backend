@@ -85,7 +85,7 @@ func main() {
 
 		var stops []Stop
 		var errors []string
-		var mapProvider maps.Provider = maps.GoogleMaps{}
+		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
 
 		for _, location := range req.Locations {
 
@@ -127,7 +127,7 @@ func main() {
 
 		var places []Address
 		var errors []error
-		var mapProvider maps.Provider = maps.GoogleMaps{}
+		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
 
 		//insert start location
 		startAddr, err := mapProvider.AcquireAddress(ItineraryReq.StartLocation)
@@ -172,7 +172,7 @@ func main() {
 		//get edges between stops//
 
 		//setup concurrency
-		var edgeWeigthGroup sync.WaitGroup
+		var edgeWeightGroup sync.WaitGroup
 		var walkingEdges, carEdges, subwayEdges EdgeWeights
 		var walkingErr, carErr, subwayErr error
 
@@ -181,24 +181,24 @@ func main() {
 		carDataProvider := edges.Mapbox{}
 		subwayDataProvider := edges.GoogleMaps{}
 
-		edgeWeigthGroup.Add(3)
+		edgeWeightGroup.Add(3)
 
 		go func() {
-			defer edgeWeigthGroup.Done()
+			defer edgeWeightGroup.Done()
 			walkingEdges, walkingErr = walkingDataProvider.AcquireWalkingTravelTime(places)
 		}()
 
 		go func() {
-			defer edgeWeigthGroup.Done()
+			defer edgeWeightGroup.Done()
 			subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
 		}()
 
 		go func() {
-			defer edgeWeigthGroup.Done()
+			defer edgeWeightGroup.Done()
 			carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
 		}()
 
-		edgeWeigthGroup.Wait()
+		edgeWeightGroup.Wait()
 
 		//acquire edgeweight errors after concurrency is done
 		if walkingErr != nil || subwayErr != nil || carErr != nil {

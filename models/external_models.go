@@ -3,12 +3,17 @@ package models
 type ItineraryEntry struct {
 	Name                    string //incase we call it like "Lunch" or "Museum" instead of the actual name of the stop
 	Address                 Address
-	ArrivalTimeInMinutes    int //clock time you get there, written as minutes from midnight, so 600 is 10 AM
-	DepartureTimeInMinutes  int //clock time you leave, written as minutes from midnight, so 600 is 10 AM
-	DurationAtStopInMinutes int //how long you spend at the stop, so DepartureTime - ArrivalTime
-	TransportToNextStop     TransitType
-	TravelTimeToNextStop    int
-	TransitCost             int
+	ArrivalTimeInMinutes    int   //clock time you get there, written as minutes from midnight, so 600 is 10 AM
+	DepartureTimeInMinutes  int   //clock time you leave, written as minutes from midnight, so 600 is 10 AM
+	DurationAtStopInMinutes int   //how long you spend at the stop, so DepartureTime - ArrivalTime
+	Legs                    []Leg //the legs to get to the next stop such as walk to subway, take subway, walk to restaurant
+}
+
+type Leg struct {
+	TransportType TransitType
+	TravelTimes   int
+	TransitCosts  int
+	Polylines     []string //encoded polyline of the leg
 }
 
 type Itinerary struct {

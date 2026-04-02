@@ -112,3 +112,82 @@ func (m Mapbox) acquireTravelTime(Addrs []Address, profile string) (EdgeWeights,
 	}, nil
 
 }
+
+func (m Mapbox) AcquireWalkingLeg(origin Address, destination Address) (Leg, error) {
+	return m.acquireLeg(origin, destination, Walking)
+}
+
+func (m Mapbox) AcquireCarLeg(origin Address, destination Address) (Leg, error) {
+	return m.acquireLeg(origin, destination, Car)
+}
+
+func (m Mapbox) acquireLeg(origin Address, destination Address, transitType TransitType) (Leg, error) {
+
+	var profile string
+	switch transitType {
+	case Walking:
+		profile = "mapbox/walking"
+	case Car:
+		profile = "mapbox/driving-traffic"
+	default:
+		return Leg{}, fmt.Errorf("unsupported transit type: %d", transitType)
+	}
+
+	coords := fmt.Sprintf("%.6f,%.6f;%.6f,%.6f", origin.Lon, origin.Lat, destination.Lon, destination.Lat)
+
+	apiKey := os.Getenv("MAPBOX_MATRIX_API_KEY")
+	if apiKey == "" {
+		return Leg{}, fmt.Errorf("MAPBOX_MATRIX_API_KEY environment variable is not set")
+	}
+
+	url := fmt.Sprintf(
+		"https://api.mapbox.com/directions/v5/%s/%s?geometries=polyline&overview=full&access_token=%s",
+		profile,
+		coords,
+		apiKey,
+	)
+
+	resp, err := http.Get(url)
+
+	if err != nil {
+		return Leg{}, fmt.Errorf("HTTP request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return Leg{}, fmt.Errorf("non-OK HTTP status: %s", resp.Status)
+	}
+
+	var directionsResponse struct {
+		Code   string `json:"code"`
+		Routes []struct {
+			Duration float64 `json:"duration"`
+			Geometry string  `json:"geometry"`
+			Legs     []struct {
+			} `json:"legs"`
+		} `json:"routes"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&directionsResponse); err != nil {
+		return Leg{}, fmt.Errorf("JSON decode error: %w", err)
+	}
+
+	if directionsResponse.Code != "Ok" {
+		return Leg{}, fmt.Errorf("Mapbox API error: %s", directionsResponse.Code)
+	}
+
+	if len(directionsResponse.Routes) == 0 {
+		return Leg{}, fmt.Errorf("no routes found")
+	}
+
+	route := directionsResponse.Routes[0]
+
+	polyline := route.Geometry
+
+	return Leg{
+		TransportType: transitType,
+		TravelTimes:   int(route.Duration),
+		TransitCosts:  0,
+		Polylines:     []string{polyline},
+	}, nil
+}
