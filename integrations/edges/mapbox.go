@@ -186,7 +186,7 @@ func (m Mapbox) acquireLeg(origin Address, destination Address, transitType Tran
 
 	return Leg{
 		TransportType: transitType,
-		TravelTimes:   int(route.Duration),
+		TravelTimes:   int(route.Duration/60) + 1, //convert to minutes
 		TransitCosts:  0,
 		Polylines:     []string{polyline},
 	}, nil
