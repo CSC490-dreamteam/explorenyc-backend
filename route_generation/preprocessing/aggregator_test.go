@@ -1,4 +1,4 @@
-package matrixaggregator
+package preprocessing
 
 //to run test go test -v ./route_generation/preprocessing/matrixaggregator
 

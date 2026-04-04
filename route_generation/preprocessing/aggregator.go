@@ -1,4 +1,4 @@
-package matrixaggregator
+package preprocessing
 
 import (
 	"fmt"

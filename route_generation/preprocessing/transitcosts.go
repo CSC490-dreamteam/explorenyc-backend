@@ -1,4 +1,4 @@
-package matrixaggregator
+package preprocessing
 
 import . "github.com/CSC490-dreamteam/explorenyc-backend/models"
 
