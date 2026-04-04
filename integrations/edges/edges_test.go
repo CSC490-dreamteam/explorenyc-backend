@@ -193,6 +193,25 @@ func TestAcquireWalkingTravelTimeFromMapbox(t *testing.T) {
 	}
 }
 
+func TestAcquireWalkingPolyFromMapbox(t *testing.T) {
+	err := godotenv.Load("../../.env")
+	if err != nil {
+		log.Fatal("error loading .env")
+	}
+
+	stops := []Address{
+		{PlaceName: "Empire State Building", Lat: 40.748441, Lon: -73.985664},
+		{PlaceName: "Starbucks", Lat: 40.756640, Lon: -73.985900},
+		{PlaceName: "Central Park Zoo", Lat: 40.767706, Lon: -73.971991},
+		{PlaceName: "350 5th Ave", Lat: 40.748721, Lon: -73.984817},
+	}
+
+	var edgeProvider WalkingLegProvider = Mapbox{}
+	leg, err := edgeProvider.AcquireWalkingLeg(stops[0], stops[1])
+	fmt.Printf("travel time from %s to %s is %d", stops[0].PlaceName, stops[1].PlaceName, leg.TravelTimes)
+
+}
+
 func TestAcquireCarTravelTimeFromMapbox(t *testing.T) {
 	err := godotenv.Load("../../.env")
 	if err != nil {
@@ -236,6 +255,7 @@ func TestAcquireCarTravelTimeFromMapbox(t *testing.T) {
 			fmt.Printf("  %s -> %s: %d meters\n", origin.PlaceName, destination.PlaceName, result.Distances[i][j])
 		}
 	}
+
 }
 
 // tomtom
