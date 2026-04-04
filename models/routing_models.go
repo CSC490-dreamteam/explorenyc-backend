@@ -47,7 +47,7 @@ type EdgeWeights struct {
 type CombinedMatrices struct {
 	TimeMinutes [][]int
 	CostCents   [][]int
-	Mode        [][]string
+	Mode        [][]TransitType
 }
 
 // CombineConfig controls how the aggregator compares one transportation mode

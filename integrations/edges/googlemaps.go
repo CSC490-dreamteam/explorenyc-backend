@@ -144,7 +144,7 @@ func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (Edge
 		if err != nil {
 			return EdgeWeights{}, fmt.Errorf("failed to parse duration for edge: %v", err)
 		}
-		durations[edge.OriginIndex][edge.DestinationIndex] = seconds
+		durations[edge.OriginIndex][edge.DestinationIndex] = seconds / 60 //convert to minutes
 		distances[edge.OriginIndex][edge.DestinationIndex] = edge.DistanceMeters
 	}
 

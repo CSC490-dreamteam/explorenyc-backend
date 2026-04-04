@@ -19,9 +19,9 @@ import (
 	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/edges"
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
-	matrixaggregator "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/matrixaggregator"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
 	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/postprocessing"
+	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/preprocessing"
 )
 
 type RouteRequest struct {
@@ -233,7 +233,9 @@ func main() {
 			CarCostPerKilometerCents: 50,
 		}
 
-		optimizedMatrices, err := matrixaggregator.CombineBestEdges(walkingEdges, subwayEdges, carEdges, transitconfig)
+		alledgeweights := []EdgeWeights{walkingEdges, subwayEdges, carEdges}
+
+		optimizedMatrices, err := preprocessing.CombineBestEdges(alledgeweights, []TransitType{Walking, Subway, Car}, transitconfig)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("failed to combine best edges: %v", err))
 			fmt.Println("combining error")
@@ -315,10 +317,10 @@ func main() {
 			EndIndex:              0,
 			DayStartTimeInMinutes: parseTimeIntoMinutes(ItineraryReq.EntryTime),
 			DayEndTimeInMinutes:   parseTimeIntoMinutes(ItineraryReq.ExitTime),
-			BudgetInCents:         5000,                          //PLACEHOLDER, $50 budget for transit costs
-			TravelTimeMatrix:      optimizedMatrices.TimeMinutes, //TODO david
-			CostMatrix:            optimizedMatrices.CostCents,   //TODO placeholder, wait for david
-			CandidateGroups:       []CandidateGroup{},            //TODO wait on nick
+			BudgetInCents:         5000, //PLACEHOLDER, $50 budget for transit costs
+			TravelTimeMatrix:      optimizedMatrices.TimeMinutes,
+			CostMatrix:            optimizedMatrices.CostCents,
+			CandidateGroups:       []CandidateGroup{}, //TODO wait on nick
 			RouteVariant:          Balanced,
 			//empty so python doesnt get mad
 			Precedences:   [][2]int{},
@@ -371,18 +373,12 @@ func main() {
 
 		fmt.Printf("Solver output: %+v\n", solverOutput)
 
-		adaptedtransitTypeMatrix, err := ConvertModeMatrix(optimizedMatrices.Mode)
-		if err != nil {
-			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to convert mode matrix: %v", err)})
-			return
-		}
-
 		//process python response with post processor
 		PostProcessorInput := PostProcessorInput{
 			SolverInput:       solverInput,
 			SolverOutput:      solverOutput,
 			StopMap:           addressMapping,
-			TransitTypeMatrix: adaptedtransitTypeMatrix,
+			TransitTypeMatrix: optimizedMatrices.Mode,
 			TransitCostMatrix: optimizedMatrices.CostCents,
 		}
 
