@@ -127,7 +127,7 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 	}
 
 	return Itinerary{ //return big boy official JSON
-		Entries:                 entries,
+		Stops:                   entries,
 		DroppedStops:            ProcessDroppedStops(addressmap, output.DroppedStops),
 		TotalTransitCostInCents: output.TotalCostInCents,
 		TotalTimeInMinutes:      output.TotalTimeInMinutes,

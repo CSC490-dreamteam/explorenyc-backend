@@ -17,7 +17,7 @@ type Leg struct {
 }
 
 type Itinerary struct {
-	Entries                 []ItineraryEntry
+	Stops                   []ItineraryEntry
 	DroppedStops            []Address
 	TotalTimeInMinutes      int
 	TotalTransitCostInCents int
