@@ -36,13 +36,14 @@ type StopRequest struct {
 }
 
 type ItineraryRequest struct {
-	TripName      string        `json:"tripName"`
-	Date          string        `json:"date"`
-	EntryTime     string        `json:"entryTime"` //09:00 AM
-	ExitTime      string        `json:"exitTime"`  //09:00 PM
-	StartLocation string        `json:"startLocation"`
-	EndLocation   *string       `json:"endLocation"`
-	Stops         []StopRequest `json:"stops"`
+	TripName      string          `json:"tripName"`
+	Date          string          `json:"date"`
+	EntryTime     string          `json:"entryTime"` //09:00 AM
+	ExitTime      string          `json:"exitTime"`  //09:00 PM
+	StartLocation string          `json:"startLocation"`
+	EndLocation   *string         `json:"endLocation"`
+	Stops         []StopRequest   `json:"stops"`
+	TransitTypes  map[string]bool `json:"transitTypes"`
 }
 
 // ---------------- Post Processor ----------------
