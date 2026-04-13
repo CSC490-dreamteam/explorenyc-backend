@@ -88,9 +88,3 @@ const (
 	//Biking TODO?
 	//Uber TODO
 )
-
-var stringToTransit = map[string]TransitType{
-	"walking": Walking,
-	"car":     Car,
-	"subway":  Subway,
-}
