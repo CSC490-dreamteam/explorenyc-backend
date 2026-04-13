@@ -168,10 +168,9 @@ func main() {
 				errors = append(errors, e)
 			}
 		}
-
 		//get edges between stops//
 
-		//setup concurrency
+		//setup concurrency for edges
 		var edgeWeightGroup sync.WaitGroup
 		var walkingEdges, carEdges, subwayEdges EdgeWeights
 		var walkingErr, carErr, subwayErr error
@@ -181,47 +180,54 @@ func main() {
 		carDataProvider := edges.Mapbox{}
 		subwayDataProvider := edges.GoogleMaps{}
 
-		edgeWeightGroup.Add(3)
+		//count transit types
+		selectedTransitsCount := 0
+		for _, selected := range ItineraryReq.TransitTypes {
+			if selected {
+				selectedTransitsCount++
+			}
+		}
+		edgeWeightGroup.Add(selectedTransitsCount)
 
-		go func() {
-			defer edgeWeightGroup.Done()
-			walkingEdges, walkingErr = walkingDataProvider.AcquireWalkingTravelTime(places)
-		}()
+		//get edgeweights
+		//
+		if ItineraryReq.TransitTypes["walking"] {
+			go func() {
+				defer edgeWeightGroup.Done()
+				walkingEdges, walkingErr = walkingDataProvider.AcquireWalkingTravelTime(places)
+			}()
+		}
 
-		go func() {
-			defer edgeWeightGroup.Done()
-			subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
-		}()
+		if ItineraryReq.TransitTypes["subway"] {
+			go func() {
+				defer edgeWeightGroup.Done()
+				subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
+			}()
+		}
 
-		go func() {
-			defer edgeWeightGroup.Done()
-			carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
-		}()
+		if ItineraryReq.TransitTypes["car"] {
+			go func() {
+				defer edgeWeightGroup.Done()
+				carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
+			}()
+		}
 
 		edgeWeightGroup.Wait()
 
 		//acquire edgeweight errors after concurrency is done
-		if walkingErr != nil || subwayErr != nil || carErr != nil {
-			var errs []string
-			if walkingErr != nil {
-				errs = append(errs, fmt.Sprintf("failed to acquire walking travel times: %v", walkingErr))
-			}
-			if subwayErr != nil {
-				errs = append(errs, fmt.Sprintf("failed to acquire subway travel times: %v", subwayErr))
-			}
-			if carErr != nil {
-				errs = append(errs, fmt.Sprintf("failed to acquire car travel times: %v", carErr))
-			}
+		if ItineraryReq.TransitTypes["walking"] && walkingErr != nil {
+			errors = append(errors, fmt.Errorf("failed to get walking travel times: %v", walkingErr))
+		}
 
-			context.JSON(http.StatusInternalServerError, gin.H{
-				"errors": errs,
-			})
-			return
+		if ItineraryReq.TransitTypes["subway"] && subwayErr != nil {
+			errors = append(errors, fmt.Errorf("failed to get subway travel times: %v", subwayErr))
+		}
+
+		if ItineraryReq.TransitTypes["car"] && carErr != nil {
+			errors = append(errors, fmt.Errorf("failed to get car travel times: %v", carErr))
 		}
 
 		fmt.Println("Edge Weights acquired")
-
-		//combine weights using david's part
 
 		transitconfig := CombineConfig{
 			TimeValueCentsPerMinute:  25,
@@ -233,9 +239,24 @@ func main() {
 			CarCostPerKilometerCents: 50,
 		}
 
-		alledgeweights := []EdgeWeights{walkingEdges, subwayEdges, carEdges}
+		//make edgeweights array and array of whatever transits were selected
+		var alledgeweights []EdgeWeights
+		var selectedTransitTypes []TransitType
+		if ItineraryReq.TransitTypes["walking"] {
+			alledgeweights = append(alledgeweights, walkingEdges)
+			selectedTransitTypes = append(selectedTransitTypes, Walking)
+		}
+		if ItineraryReq.TransitTypes["subway"] {
+			alledgeweights = append(alledgeweights, subwayEdges)
+			selectedTransitTypes = append(selectedTransitTypes, Subway)
+		}
+		if ItineraryReq.TransitTypes["car"] {
+			alledgeweights = append(alledgeweights, carEdges)
+			selectedTransitTypes = append(selectedTransitTypes, Car)
+		}
 
-		optimizedMatrices, err := preprocessing.CombineBestEdges(alledgeweights, []TransitType{Walking, Subway, Car}, transitconfig)
+		optimizedMatrices, err := preprocessing.CombineBestEdges(alledgeweights, selectedTransitTypes, transitconfig)
+
 		if err != nil {
 			errors = append(errors, fmt.Errorf("failed to combine best edges: %v", err))
 			fmt.Println("combining error")
