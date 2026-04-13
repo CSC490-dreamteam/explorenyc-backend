@@ -42,8 +42,8 @@ type ItineraryRequest struct {
 	ExitTime      string          `json:"exitTime"`  //09:00 PM
 	StartLocation string          `json:"startLocation"`
 	EndLocation   *string         `json:"endLocation"`
-	Stops         []StopRequest   `json:"stops"`
 	TransitTypes  map[string]bool `json:"transitTypes"`
+	Stops         []StopRequest   `json:"stops"`
 }
 
 // ---------------- Post Processor ----------------

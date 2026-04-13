@@ -117,6 +117,11 @@ func TestLocalGenerateItinerary(t *testing.T) {
 		EntryTime:     "11:00 AM",
 		ExitTime:      "09:00 PM",
 		StartLocation: "Penn Station, New York, NY",
+		TransitTypes: map[string]bool{
+			"walking": true,
+			"car":     false,
+			"subway":  true,
+		},
 		Stops: []StopRequest{
 			{
 				Location:       "Times Square",
