@@ -1,7 +1,5 @@
 package preprocessing
 
-//to run test go test -v ./route_generation/preprocessing/matrixaggregator
-
 import (
 	"fmt"
 	"testing"
@@ -64,6 +62,70 @@ func TestCombineBestEdgesWalkingOnly(t *testing.T) {
 
 			if combinedMatrices.CostCents[fromStopIndex][toStopIndex] != 0 {
 				t.Fatalf("walking cost should be 0 at (%d,%d)", fromStopIndex, toStopIndex)
+			}
+		}
+	}
+}
+
+// If walking is the ONLY selected transit type, the walking caps should be ignored.
+// This prevents the route from failing just because every walking edge is over the
+// normal walking time or distance cap.
+func TestCombineBestEdgesWalkingOnlyOverridesWalkingCaps(t *testing.T) {
+	stopNames := []string{
+		"Penn Station",
+		"Central Park",
+		"Broadway",
+	}
+
+	nodes := makeDemoNodes(stopNames)
+
+	// Every edge here exceeds the normal walking caps in demoCombineConfig(),
+	// but since walking is the only selected mode, the aggregator should still succeed.
+	walkingEdgeWeights := EdgeWeights{
+		Nodes: nodes,
+		Durations: [][]int{
+			{0, 40, 55},
+			{42, 0, 31},
+			{57, 33, 0},
+		},
+		Distances: [][]int{
+			{0, 3200, 4500},
+			{3300, 0, 2600},
+			{4700, 2700, 0},
+		},
+	}
+
+	combineConfig := demoCombineConfig()
+
+	combinedMatrices, combineError := CombineBestEdges(
+		[]EdgeWeights{walkingEdgeWeights},
+		[]TransitType{Walking},
+		combineConfig,
+	)
+	if combineError != nil {
+		t.Fatalf("walking-only selection should override walking caps, but got error: %v", combineError)
+	}
+
+	printDemoHeader(t, "walking only (walking cap override)")
+	printPrettyIntMatrixWithStops(t, "INPUT: Walking durations (minutes)", stopNames, walkingEdgeWeights.Durations)
+	printPrettyTransitTypeMatrixWithStops(t, "OUTPUT: Chosen transit type matrix", stopNames, combinedMatrices.Mode)
+	printPrettyIntMatrixWithStops(t, "OUTPUT: Chosen time matrix", stopNames, combinedMatrices.TimeMinutes)
+	printPrettyCentsMatrixWithStops(t, "OUTPUT: Chosen cost matrix", stopNames, combinedMatrices.CostCents)
+
+	validateBasicOutputInvariants(t, combinedMatrices)
+
+	for fromStopIndex := 0; fromStopIndex < len(stopNames); fromStopIndex++ {
+		for toStopIndex := 0; toStopIndex < len(stopNames); toStopIndex++ {
+			if fromStopIndex == toStopIndex {
+				continue
+			}
+
+			if combinedMatrices.Mode[fromStopIndex][toStopIndex] != Walking {
+				t.Fatalf("expected walking mode at (%d,%d)", fromStopIndex, toStopIndex)
+			}
+
+			if combinedMatrices.TimeMinutes[fromStopIndex][toStopIndex] != walkingEdgeWeights.Durations[fromStopIndex][toStopIndex] {
+				t.Fatalf("expected walking duration to be preserved at (%d,%d)", fromStopIndex, toStopIndex)
 			}
 		}
 	}

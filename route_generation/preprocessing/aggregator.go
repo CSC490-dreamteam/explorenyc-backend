@@ -57,6 +57,11 @@ func CombineBestEdges(
 	timeOutput, costOutput, modeOutput := initializeOutputMatrices(stopCount)
 	transitInputs := buildDynamicTransitInputs(edgeWeightsByTransit, transitTypes)
 
+	// If walking is the ONLY selected transit type, we bypass the walking caps.
+	// This prevents the route from failing just because every walking edge exceeds
+	// the normal walking cap. The cap still applies in mixed-mode scenarios.
+	onlyWalkingSelected := isWalkingOnlySelection(transitTypes)
+
 	for fromStopIndex := 0; fromStopIndex < stopCount; fromStopIndex++ {
 		for toStopIndex := 0; toStopIndex < stopCount; toStopIndex++ {
 			if fromStopIndex == toStopIndex {
@@ -68,6 +73,7 @@ func CombineBestEdges(
 				toStopIndex,
 				transitInputs,
 				combineConfig,
+				onlyWalkingSelected,
 			)
 			if selectionError != nil {
 				return CombinedMatrices{}, selectionError
@@ -103,6 +109,13 @@ func buildDynamicTransitInputs(
 	}
 
 	return transitInputs
+}
+
+// isWalkingOnlySelection returns true only when the caller selected exactly one
+// transit type and that type is Walking.
+// the walking-cap override only in the "walking only" case.
+func isWalkingOnlySelection(transitTypes []TransitType) bool {
+	return len(transitTypes) == 1 && transitTypes[0] == Walking
 }
 
 // validateAggregatorInputs ensures the dynamic inputs are valid and comparable.
@@ -264,6 +277,7 @@ func chooseBestEdge(
 	toStopIndex int,
 	transitInputs []dynamicTransitInput,
 	combineConfig CombineConfig,
+	onlyWalkingSelected bool,
 ) (evaluatedEdge, error) {
 	bestEdge := evaluatedEdge{
 		valid: false,
@@ -275,6 +289,7 @@ func chooseBestEdge(
 			toStopIndex,
 			transitInput,
 			combineConfig,
+			onlyWalkingSelected,
 		)
 
 		if !candidateEdge.valid {
@@ -303,6 +318,7 @@ func evaluateEdgeForTransit(
 	toStopIndex int,
 	transitInput dynamicTransitInput,
 	combineConfig CombineConfig,
+	onlyWalkingSelected bool,
 ) evaluatedEdge {
 	durationMinutes := transitInput.edgeWeights.Durations[fromStopIndex][toStopIndex]
 	distanceMeters := transitInput.edgeWeights.Distances[fromStopIndex][toStopIndex]
@@ -316,7 +332,7 @@ func evaluateEdgeForTransit(
 		return evaluatedEdge{valid: false}
 	}
 
-	if edgeExceedsTransitCaps(transitInput.transitType, durationMinutes, distanceMeters, combineConfig) {
+	if edgeExceedsTransitCaps(transitInput.transitType, durationMinutes, distanceMeters, combineConfig, onlyWalkingSelected) {
 		return evaluatedEdge{valid: false}
 	}
 
@@ -341,13 +357,20 @@ func evaluateEdgeForTransit(
 
 // edgeExceedsTransitCaps applies transit-specific filtering.
 // to stay close to the previous iteration, only walking uses caps right now.
+// walking is the only selected transit type, walking caps are ignored
+// multiple transit types are selected, walking caps still apply as normal
 func edgeExceedsTransitCaps(
 	transitType TransitType,
 	durationMinutes int,
 	distanceMeters int,
 	combineConfig CombineConfig,
+	onlyWalkingSelected bool,
 ) bool {
 	if transitType != Walking {
+		return false
+	}
+
+	if onlyWalkingSelected {
 		return false
 	}
 
