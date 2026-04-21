@@ -105,6 +105,10 @@ func TestExportGoogleURL(t *testing.T) {
 func inputTime(s string) *string {
 	return &s
 }
+
+func strPtr(s string) *string {
+	return &s
+}
 func TestLocalGenerateItinerary(t *testing.T) {
 	err := godotenv.Load()
 	if err != nil {
@@ -116,7 +120,8 @@ func TestLocalGenerateItinerary(t *testing.T) {
 		Date:          "2023-10-27",
 		EntryTime:     "11:00 AM",
 		ExitTime:      "09:00 PM",
-		StartLocation: "Penn Station, New York, NY",
+		StartLocation: "penn station new york ny",
+		EndLocation:   strPtr("penn station new york ny"), //round trip
 		TransitTypes: map[string]bool{
 			"walking": true,
 			"car":     false,
@@ -131,18 +136,30 @@ func TestLocalGenerateItinerary(t *testing.T) {
 			},
 			{
 				Location:       "Central Park",
-				TimePreference: inputTime("4:00 PM"),
+				TimePreference: inputTime("3:00 PM"),
 				Mandatory:      true,
 				Duration:       60, //spend an hour there
 			},
 			{
-				Location:       "burp castle new york ny",
+				Location:       "schmuck.",
 				TimePreference: nil,
 				Mandatory:      true,
 				Duration:       60, //spend an hour there
 			},
 			{
-				Location:       "Holcombe Rucker Park",
+				Location:       "midtown comics new york",
+				TimePreference: nil,
+				Mandatory:      true,
+				Duration:       20,
+			},
+			{
+				Location:       "nintendo store ny",
+				TimePreference: nil,
+				Mandatory:      true,
+				Duration:       60, //spend an hour there
+			},
+			{
+				Location:       "lego store fifth avenue new york ny",
 				TimePreference: nil,
 				Mandatory:      true,
 				Duration:       130,

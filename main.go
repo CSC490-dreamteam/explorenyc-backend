@@ -129,6 +129,13 @@ func main() {
 		var errors []error
 		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
 
+		hasEnd := ItineraryReq.EndLocation != nil && *ItineraryReq.EndLocation != ""
+
+		//handle roundtrip edgecase
+		StartEqualsEnd := hasEnd && strings.EqualFold(ItineraryReq.StartLocation, *ItineraryReq.EndLocation)
+
+		needsSeparateEnd := hasEnd && !StartEqualsEnd
+
 		//insert start location
 		startAddr, err := mapProvider.AcquireAddress(ItineraryReq.StartLocation)
 		if err != nil {
@@ -136,12 +143,27 @@ func main() {
 			return
 		}
 
+		//insert end location if it exists and is different from start
+		var endAddr Address
+		if needsSeparateEnd {
+			endAddr, err = mapProvider.AcquireAddress(*ItineraryReq.EndLocation)
+			if err != nil {
+				context.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("could not resolve end location '%s': %v", *ItineraryReq.EndLocation, err)})
+				return
+			}
+		}
+
 		//prep places for concurrency
 		numStops := len(ItineraryReq.Stops)
-		places = make([]Address, numStops+1) // +1 for the start location
-		places[0] = startAddr
-		stopErrors := make([]error, numStops)
+		numPlaces := numStops + 1 // +1 for the start location
+		if needsSeparateEnd {
+			numPlaces++ // +1 for the end location if it's different from the start
+		}
 
+		places = make([]Address, numPlaces)
+		places[0] = startAddr
+
+		stopErrors := make([]error, numStops)
 		var stopGroup sync.WaitGroup
 		stopGroup.Add(numStops)
 
@@ -168,6 +190,21 @@ func main() {
 				errors = append(errors, e)
 			}
 		}
+
+		// place the separate end at the tail of places
+		if needsSeparateEnd {
+			places[numPlaces-1] = endAddr
+		}
+
+		//compute final indices for the solver
+		startIndex := 0
+		endIndex := -1 // defaults to being open ended
+		if needsSeparateEnd {
+			endIndex = numPlaces - 1 //index of the separate end location
+		} else if StartEqualsEnd {
+			endIndex = 0 //round trip
+		}
+
 		//get edges between stops//
 
 		//setup concurrency for edges
@@ -266,7 +303,7 @@ func main() {
 
 		//create python payload
 		var solverNodes []SolverNode
-		//add start and end
+		//add starting location
 		solverNodes = append(solverNodes, SolverNode{
 			ID:                "0",
 			Name:              places[0].PlaceName,
@@ -332,10 +369,28 @@ func main() {
 			solverNodes = append(solverNodes, node)
 		}
 
+		//add end location (if one is set)
+		if needsSeparateEnd {
+			solverNodes = append(solverNodes, SolverNode{
+				ID:                fmt.Sprintf("%d", numPlaces-1),
+				Name:              places[numPlaces-1].PlaceName,
+				Latitude:          places[numPlaces-1].Lat,
+				Longitude:         places[numPlaces-1].Lon,
+				DurationInMinutes: 0,
+				TimeWindowStart:   parseTimeIntoMinutes(ItineraryReq.EntryTime),
+				TimeWindowEnd:     parseTimeIntoMinutes(ItineraryReq.ExitTime),
+				Priority:          Mandatory,
+				DropPenalty:       0,
+			})
+		}
+		//roundtrip edgecase is covered with endIndex already being set to 0
+
 		solverInput := SolverInput{
+			TripName:              ItineraryReq.TripName,
+			Date:                  ItineraryReq.Date,
 			Nodes:                 solverNodes,
-			StartIndex:            0,
-			EndIndex:              0,
+			StartIndex:            startIndex,
+			EndIndex:              endIndex,
 			DayStartTimeInMinutes: parseTimeIntoMinutes(ItineraryReq.EntryTime),
 			DayEndTimeInMinutes:   parseTimeIntoMinutes(ItineraryReq.ExitTime),
 			BudgetInCents:         5000, //PLACEHOLDER, $50 budget for transit costs
