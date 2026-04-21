@@ -17,6 +17,8 @@ type Leg struct {
 }
 
 type Itinerary struct {
+	TripName                string `json:"tripName"`
+	Date                    string `json:"date"`
 	Stops                   []ItineraryEntry
 	DroppedStops            []Address
 	TotalTimeInMinutes      int
@@ -97,6 +99,8 @@ type CandidateGroup struct {
 }
 
 type SolverInput struct {
+	TripName              string           `json:"tripName"`
+	Date                  string           `json:"date"`
 	Nodes                 []SolverNode     `json:"nodes"`
 	StartIndex            int              `json:"start_index"`
 	EndIndex              int              `json:"end_index"`
