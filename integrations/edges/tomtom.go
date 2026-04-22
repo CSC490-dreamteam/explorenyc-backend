@@ -124,7 +124,12 @@ func (t Tomtom) acquireTravelTime(Addrs []Address, travelMode string) (EdgeWeigh
 		i := cell.OriginIndex
 		j := cell.DestinationIndex
 		if cell.RouteSummary != nil {
-			durations[i][j] = cell.RouteSummary.TravelTimeInSeconds
+			seconds := cell.RouteSummary.TravelTimeInSeconds
+			minutes := seconds / 60
+			if minutes == 0 && seconds > 0 {
+				minutes = 1
+			}
+			durations[i][j] = minutes
 			distances[i][j] = cell.RouteSummary.LengthInMeters
 		}
 	}

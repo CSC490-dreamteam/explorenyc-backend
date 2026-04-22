@@ -95,7 +95,12 @@ func (m Mapbox) acquireTravelTime(Addrs []Address, profile string) (EdgeWeights,
 		for j := 0; j < n; j++ {
 			// handle duration (convert to int seconds)
 			if matrixResponse.Durations[i][j] != nil {
-				durations[i][j] = int(*matrixResponse.Durations[i][j]) / 60 //convert to minutes
+				seconds := int(*matrixResponse.Durations[i][j])
+				minutes := seconds / 60
+				if minutes == 0 && seconds > 0 {
+					minutes = 1
+				}
+				durations[i][j] = minutes
 			}
 
 			// handle distance (convert to int meters)
