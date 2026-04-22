@@ -296,9 +296,9 @@ func main() {
 
 		if err != nil {
 			errors = append(errors, fmt.Errorf("failed to combine best edges: %v", err))
-			fmt.Println("combining error")
+			fmt.Printf("combining error: %v\n", err)
 			for _, e := range errors {
-				fmt.Println("Error: %v\n", e)
+				fmt.Printf("Error: %v\n", e)
 			}
 		}
 
