@@ -144,7 +144,13 @@ func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (Edge
 		if err != nil {
 			return EdgeWeights{}, fmt.Errorf("failed to parse duration for edge: %v", err)
 		}
-		durations[edge.OriginIndex][edge.DestinationIndex] = seconds / 60 //convert to minutes
+		//convert to minutes
+		minutes := seconds / 60
+		if minutes == 0 && seconds > 0 {
+			minutes = 1
+		}
+
+		durations[edge.OriginIndex][edge.DestinationIndex] = minutes
 		distances[edge.OriginIndex][edge.DestinationIndex] = edge.DistanceMeters
 	}
 
@@ -260,10 +266,13 @@ func (g GoogleMaps) AcquireSubwayLegs(origin Address, destination Address) ([]Le
 			transitCosts = 300 //in cents
 		}
 
-		// Parse duration like "120s" to int
+		//parse duration like "120s" to int
 		durationStr := strings.TrimSuffix(step.StaticDuration, "s")
-		travelTime, _ := strconv.Atoi(durationStr)
-		travelTime = travelTime / 60 // seconds to minutes
+		seconds, _ := strconv.Atoi(durationStr)
+		travelTime := seconds / 60
+		if travelTime == 0 && seconds > 0 {
+			travelTime = 1
+		}
 
 		// merge with previous leg if same transport type
 		if len(legs) > 0 && legs[len(legs)-1].TransportType == transportType {
