@@ -48,16 +48,16 @@ func (g GoogleMaps) AcquireAddress(query string) (Address, error) {
 
 	//build JSON request body
 	requestBody, err := json.Marshal(map[string]interface{}{
-		"textQuery": query + ", Manhattan, NY", //append manhattan ny so we dont go to seattle
+		"textQuery": query + " NY", //append New York to it to stay in new jersey
 		"locationRestriction": map[string]interface{}{
 			"rectangle": map[string]interface{}{
-				"low": map[string]float64{ //bounding box as insurance, it does bleed into brooklyn sadly
-					"latitude":  40.6980,  // Bottom of Manhattan (Battery Park area)
-					"longitude": -74.0250, // West side (Hudson River)
+				"low": map[string]float64{
+					"latitude":  40.477399,
+					"longitude": -74.259090,
 				},
 				"high": map[string]float64{
-					"latitude":  40.8770,  // Top of Manhattan (Inwood area)
-					"longitude": -73.9000, // East side (East River / Roosevelt Island)
+					"latitude":  40.917577,
+					"longitude": -73.700272,
 				},
 			},
 		},

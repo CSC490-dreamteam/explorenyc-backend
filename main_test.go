@@ -66,10 +66,10 @@ func TestExportGoogleURL(t *testing.T) {
 	}
 
 	queries := []string{
-		"Empire State Building",
-		"Starbucks near Times Square",
+		"Krispy pizza brooklyn",
+		"lamb hot pot flushing",
 		"Central Park Zoo",
-		"350 5th Ave, New York, NY",
+		"staten island zoo",
 	}
 
 	for _, q := range queries {
