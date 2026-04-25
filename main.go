@@ -410,7 +410,6 @@ func main() {
 		fmt.Printf("Solver input: %+v\n", solverInput)
 
 		//send python payload
-
 		pythonClient := &http.Client{Timeout: 10 * time.Second}
 
 		pythonJSON, err := json.Marshal(solverInput)
@@ -435,7 +434,14 @@ func main() {
 		}
 		defer pythonResp.Body.Close()
 
-		if pythonResp.StatusCode != http.StatusOK {
+		//if the routgen was given impossible constraints
+		if pythonResp.StatusCode == http.StatusUnprocessableEntity {
+			body, _ := io.ReadAll(pythonResp.Body)
+			context.Data(http.StatusUnprocessableEntity, "application/json", body)
+			return
+
+			//if some other error occurred
+		} else if pythonResp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(pythonResp.Body)
 			context.JSON(http.StatusInternalServerError, gin.H{
 				"error": fmt.Sprintf("python service returned %d: %s", pythonResp.StatusCode, string(body)),
