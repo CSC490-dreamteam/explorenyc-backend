@@ -1,5 +1,6 @@
 # ExploreNYC-backend
 
+This codebase handles half of the process for generating a user trip for ExploreNYC. This codebase handles acquiring geolocation and transit data from multiple sources such as Google Maps, Mapbox and TomTom. This codebase is responsible for sending this data to the CP-SAT python codebase to generate a route, then polishing the result to output to the frontend.
 
 
 ## Running Tests
