@@ -16,6 +16,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/CSC490-dreamteam/explorenyc-backend/data/cache"
 	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/edges"
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
@@ -66,6 +67,15 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
+	}
+
+	//init redis cache
+	redisCache, err := cache.New()
+	if err != nil {
+		fmt.Printf("failed to init cache: %v\n", err)
+		redisCache = &cache.Cache{} // no-op cache
+	} else {
+		defer redisCache.Close()
 	}
 
 	pythonURL := os.Getenv("PYTHON_SERVICE_URL")
@@ -213,9 +223,9 @@ func main() {
 		var walkingErr, carErr, subwayErr error
 
 		//setup edge providers
-		walkingDataProvider := edges.Mapbox{}
-		carDataProvider := edges.Mapbox{}
-		subwayDataProvider := edges.GoogleMaps{}
+		walkingDataProvider := edges.Mapbox{Cache: redisCache}
+		carDataProvider := edges.Mapbox{Cache: redisCache}
+		subwayDataProvider := edges.GoogleMaps{Cache: redisCache}
 
 		//count transit types
 		selectedTransitsCount := 0
@@ -467,7 +477,7 @@ func main() {
 			TransitCostMatrix: optimizedMatrices.CostCents,
 		}
 
-		itinerary, err := postprocessing.ProcessRouteResponse(PostProcessorInput)
+		itinerary, err := postprocessing.ProcessRouteResponse(PostProcessorInput, *redisCache)
 
 		if err != nil {
 			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to process route response: %v", err)})

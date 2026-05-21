@@ -6,12 +6,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/CSC490-dreamteam/explorenyc-backend/data/cache"
 	edges "github.com/CSC490-dreamteam/explorenyc-backend/integrations/edges"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	"golang.org/x/sync/errgroup"
 )
 
-func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
+func ProcessRouteResponse(ppinput PostProcessorInput, cache cache.Cache) (Itinerary, error) {
 	output := ppinput.SolverOutput
 	input := ppinput.SolverInput
 	addressmap := ppinput.StopMap
@@ -45,7 +46,7 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 		switch transitType {
 		case Subway:
 			group.Go(func() error {
-				legs, err := GetSubwayLegs(edges.GoogleMaps{}, context, originAddr, destAddr)
+				legs, err := GetSubwayLegs(edges.GoogleMaps{Cache: &cache}, context, originAddr, destAddr)
 				if err != nil {
 					legs = []Leg{{
 						TransportType: Subway,
@@ -58,7 +59,7 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 			})
 		case Walking:
 			group.Go(func() error {
-				leg, err := GetWalkingLeg(edges.Mapbox{}, context, originAddr, destAddr)
+				leg, err := GetWalkingLeg(edges.Mapbox{Cache: &cache}, context, originAddr, destAddr)
 				if err != nil {
 					fmt.Printf("Walking Error (idx %d): %v\n", i, err)
 					leg = Leg{
@@ -72,7 +73,7 @@ func ProcessRouteResponse(ppinput PostProcessorInput) (Itinerary, error) {
 			})
 		case Car:
 			group.Go(func() error {
-				leg, err := GetCarLeg(edges.Mapbox{}, context, originAddr, destAddr)
+				leg, err := GetCarLeg(edges.Mapbox{Cache: &cache}, context, originAddr, destAddr)
 				if err != nil {
 					leg = Leg{
 						TransportType: Car,
