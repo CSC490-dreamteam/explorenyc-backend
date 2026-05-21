@@ -5,30 +5,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/CSC490-dreamteam/explorenyc-backend/data/cache"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
-type GoogleMaps struct{}
+type GoogleMaps struct {
+	Cache *cache.Cache
+}
 
 func (g GoogleMaps) AcquireWalkingTravelTime(Addrs []Address) (EdgeWeights, error) {
-	return g.acquireTravelTime(Addrs, "walking")
+	return g.acquireTravelTime(Addrs, Walking)
 }
 
 func (g GoogleMaps) AcquireCarTravelTime(Addrs []Address) (EdgeWeights, error) {
-	return g.acquireTravelTime(Addrs, "car")
+	return g.acquireTravelTime(Addrs, Car)
 }
 
 func (g GoogleMaps) AcquireSubwayTravelTime(Addrs []Address) (EdgeWeights, error) {
-	return g.acquireTravelTime(Addrs, "subway")
+	return g.acquireTravelTime(Addrs, Subway)
 }
 
 // generic function to get travel time for any transit mode, API is mostly the same with tiny diffs
-func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (EdgeWeights, error) {
+func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode TransitType) (EdgeWeights, error) {
 	const endpoint = "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix"
 	apiKey := os.Getenv("GOOGLE_MAPS_ROUTES_API_KEY")
 
@@ -36,40 +41,115 @@ func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (Edge
 		return EdgeWeights{}, fmt.Errorf("GOOGLE_MAPS_ROUTES_API_KEY environment variable is not set")
 	}
 
-	//make "waypoints". how google wants the stops formatted for the API
-	waypoints := make([]map[string]interface{}, len(Addrs))
-	for i, stop := range Addrs {
-		waypoints[i] = map[string]interface{}{
-			"waypoint": map[string]interface{}{
-				"location": map[string]interface{}{
-					"latLng": map[string]float64{
-						"latitude":  stop.Lat,
-						"longitude": stop.Lon,
+	// make N by N matrices
+	n := len(Addrs)
+	durations := make([][]int, n)
+	distances := make([][]int, n)
+
+	for i := 0; i < n; i++ {
+		durations[i] = make([]int, n)
+		distances[i] = make([]int, n)
+	}
+
+	//cache lookups
+	type pair struct{ i, j int }
+	var missingPairs []pair
+
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			if i == j {
+				continue
+			}
+			ev, err := g.Cache.GetEdgeValue(Addrs[i], transitMode, Addrs[j])
+			if err != nil {
+				// log but don't block — treat as miss
+				slog.Warn("cache edge get error", "err", err)
+			}
+			if ev != nil {
+				durations[i][j] = ev.DurationMinutes
+				distances[i][j] = ev.DistanceM
+			} else {
+				missingPairs = append(missingPairs, pair{i, j})
+			}
+		}
+	}
+
+	// all hits — return immediately, no Google API call
+	if len(missingPairs) == 0 {
+		return EdgeWeights{Nodes: Addrs, Durations: durations, Distances: distances}, nil
+	}
+
+	// build set of missing pairs for Google API
+	originSet := make(map[int]bool)
+	destSet := make(map[int]bool)
+	for _, p := range missingPairs {
+		originSet[p.i] = true
+		destSet[p.j] = true
+	}
+	//make sorted list of indices
+	originIndices := make([]int, 0, len(originSet))
+	for idx := range originSet {
+		originIndices = append(originIndices, idx)
+	}
+	sort.Ints(originIndices)
+
+	destIndices := make([]int, 0, len(destSet))
+	for idx := range destSet {
+		destIndices = append(destIndices, idx)
+	}
+	sort.Ints(destIndices)
+
+	// translate Google's response indices back to the original array indices so we can place results in the correct matrix positions.
+	origToReal := make(map[int]int)
+	for si, realIdx := range originIndices {
+		origToReal[si] = realIdx
+	}
+
+	destToReal := make(map[int]int)
+	for si, realIdx := range destIndices {
+		destToReal[si] = realIdx
+	}
+
+	//make "waypoints". (how google wants the stops formatted for the API)
+	makeWaypoints := func(indices []int) []map[string]interface{} {
+		waypoints := make([]map[string]interface{}, len(indices))
+		for subsetindex, realIdx := range indices {
+			waypoints[subsetindex] = map[string]interface{}{
+				"waypoint": map[string]interface{}{
+					"location": map[string]interface{}{
+						"latLng": map[string]float64{
+							"latitude":  Addrs[realIdx].Lat,
+							"longitude": Addrs[realIdx].Lon,
+						},
 					},
 				},
-			},
+			}
 		}
+		return waypoints
 	}
 
 	//make JSON body for the request
 	body := map[string]interface{}{
-		"origins":      waypoints,
-		"destinations": waypoints,
+		"origins":      makeWaypoints(originIndices),
+		"destinations": makeWaypoints(destIndices),
 	}
 
 	switch transitMode {
-	case "walking":
+	case Walking:
 		body["travelMode"] = "WALK"
-	case "car":
+	case Car:
 		body["travelMode"] = "DRIVE"
 		body["routingPreference"] = "TRAFFIC_AWARE"
-	case "subway":
+	case Subway:
 		body["travelMode"] = "TRANSIT"
 		body["transitPreferences"] = map[string]interface{}{
 			"allowedTravelModes": []string{"SUBWAY"},
 			"routingPreference":  "FEWER_TRANSFERS",
 		}
+	default:
+		return EdgeWeights{}, fmt.Errorf("unsupported transit mode: %d", transitMode)
 	}
+
 	requestBody, err := json.Marshal(body)
 
 	if err != nil {
@@ -117,16 +197,6 @@ func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (Edge
 		return EdgeWeights{}, fmt.Errorf("JSON unmarshal error: %w", err)
 	}
 
-	// make N by N matrices
-	n := len(Addrs)
-	durations := make([][]int, n)
-	distances := make([][]int, n)
-
-	for i := 0; i < n; i++ {
-		durations[i] = make([]int, n)
-		distances[i] = make([]int, n)
-	}
-
 	//fill matrices with api response data
 	for _, edge := range edges {
 
@@ -150,8 +220,25 @@ func (g GoogleMaps) acquireTravelTime(Addrs []Address, transitMode string) (Edge
 			minutes = 1
 		}
 
-		durations[edge.OriginIndex][edge.DestinationIndex] = minutes
-		distances[edge.OriginIndex][edge.DestinationIndex] = edge.DistanceMeters
+		// translate subset indices back to original array positions
+		realI := origToReal[edge.OriginIndex]
+		realJ := destToReal[edge.DestinationIndex]
+
+		durations[realI][realJ] = minutes
+		distances[realI][realJ] = edge.DistanceMeters
+
+		// async cache write that doesn't block the response to the client
+		go func() {
+			ev := &cache.EdgeValue{
+				DurationMinutes: minutes,
+				DistanceM:       edge.DistanceMeters,
+				CostCents:       0, // populated later by cost calculator
+				Legs:            nil,
+			}
+			if err := g.Cache.SetEdgeValue(Addrs[realI], transitMode, Addrs[realJ], ev); err != nil {
+				slog.Warn("cache edge set error", "err", err)
+			}
+		}()
 	}
 
 	return EdgeWeights{
@@ -168,6 +255,15 @@ func (g GoogleMaps) AcquireSubwayLegs(origin Address, destination Address) ([]Le
 
 	if apiKey == "" {
 		return nil, fmt.Errorf("GOOGLE_MAPS_ROUTES_API_KEY environment variable is not set")
+	}
+
+	//early return for cache hit
+	edgeval, err := g.Cache.GetEdgeValue(origin, Subway, destination)
+	if err != nil {
+		slog.Warn("cache edge get error", "err", err)
+	}
+	if edgeval != nil && edgeval.Legs != nil {
+		return edgeval.Legs, nil
 	}
 
 	body := map[string]interface{}{
@@ -288,6 +384,18 @@ func (g GoogleMaps) AcquireSubwayLegs(origin Address, destination Address) ([]Le
 			})
 		}
 	}
+
+	// cache write via goroutine to not block main thread
+	go func() {
+		// If edge existed without legs, update it. If it didn't exist at all, create it.
+		if edgeval == nil {
+			edgeval = &cache.EdgeValue{}
+		}
+		edgeval.Legs = legs
+		if err := g.Cache.SetEdgeValue(origin, Subway, destination, edgeval); err != nil {
+			slog.Warn("cache edge legs set error", "err", err)
+		}
+	}()
 
 	return legs, nil
 }

@@ -510,38 +510,38 @@ func parseTimeIntoMinutes(timeStr string) int {
 	return -1
 }
 
-func ConvertModeMatrix(strMatrix [][]string) ([][]TransitType, error) {
-	if len(strMatrix) == 0 {
-		return make([][]TransitType, 0), nil
-	}
+// func ConvertModeMatrix(strMatrix [][]string) ([][]TransitType, error) {
+// 	if len(strMatrix) == 0 {
+// 		return make([][]TransitType, 0), nil
+// 	}
 
-	result := make([][]TransitType, len(strMatrix))
+// 	result := make([][]TransitType, len(strMatrix))
 
-	for i, row := range strMatrix {
-		result[i] = make([]TransitType, len(row))
+// 	for i, row := range strMatrix {
+// 		result[i] = make([]TransitType, len(row))
 
-		for j, val := range row {
-			tt := parseTransitType(val)
+// 		for j, val := range row {
+// 			tt := parseTransitType(val)
 
-			result[i][j] = tt
-		}
-	}
+// 			result[i][j] = tt
+// 		}
+// 	}
 
-	return result, nil
-}
+// 	return result, nil
+// }
 
-func parseTransitType(s string) TransitType {
-	switch s {
-	case "WALKING":
-		return Walking
-	case "CAR":
-		return Car
-	case "SUBWAY":
-		return Subway
-	case "UNREACHABLE", "SELF":
-		// Defaulting to Walking per your temporary requirement
-		return Walking
-	default:
-		return 0
-	}
-}
+// func parseTransitType(s string) TransitType {
+// 	switch s {
+// 	case "WALKING":
+// 		return Walking
+// 	case "CAR":
+// 		return Car
+// 	case "SUBWAY":
+// 		return Subway
+// 	case "UNREACHABLE", "SELF":
+// 		// Defaulting to Walking per your temporary requirement
+// 		return Walking
+// 	default:
+// 		return 0
+// 	}
+// }

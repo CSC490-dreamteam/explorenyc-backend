@@ -24,18 +24,18 @@ type EdgeValue struct {
 	Legs            []Leg `json:"legs"` // nil pre-solver, populated post-solver
 }
 
-func formEdgeKey(originLat, originLon float64, mode string, destLat, destLon float64) string {
-	oHash := geohash.EncodeWithPrecision(originLat, originLon, geohashPrecision)
-	dHash := geohash.EncodeWithPrecision(destLat, destLon, geohashPrecision)
+func formEdgeKey(origin Address, mode string, destination Address) string {
+	oHash := geohash.EncodeWithPrecision(origin.Lat, origin.Lon, geohashPrecision)
+	dHash := geohash.EncodeWithPrecision(destination.Lat, destination.Lon, geohashPrecision)
 	return fmt.Sprintf("%s%s:%s:%s", edgeKeyPrefix, oHash, mode, dHash)
 }
 
-func (c *Cache) GetEdgeValue(originLat, originLon float64, transit TransitType, destLat, destLon float64) (*EdgeValue, error) {
+func (c *Cache) GetEdgeValue(origin Address, transit TransitType, destination Address) (*EdgeValue, error) {
 	if c.client == nil {
 		return nil, nil
 	}
 
-	val, err := c.client.Get(context.Background(), formEdgeKey(originLat, originLon, transit.String(), destLat, destLon)).Bytes()
+	val, err := c.client.Get(context.Background(), formEdgeKey(origin, transit.String(), destination)).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil
@@ -50,7 +50,7 @@ func (c *Cache) GetEdgeValue(originLat, originLon float64, transit TransitType, 
 	return &result, nil
 }
 
-func (c *Cache) SetEdgeValue(originLat, originLon float64, transit TransitType, destLat, destLon float64, edge *EdgeValue) error {
+func (c *Cache) SetEdgeValue(origin Address, transit TransitType, destination Address, edge *EdgeValue) error {
 	if c.client == nil {
 		return nil
 	}
@@ -60,7 +60,7 @@ func (c *Cache) SetEdgeValue(originLat, originLon float64, transit TransitType, 
 		return fmt.Errorf("cache error: edge marshal: %w", err)
 	}
 
-	if err := c.client.Set(context.Background(), formEdgeKey(originLat, originLon, transit.String(), destLat, destLon), data, edgeTTL).Err(); err != nil {
+	if err := c.client.Set(context.Background(), formEdgeKey(origin, transit.String(), destination), data, edgeTTL).Err(); err != nil {
 		return fmt.Errorf("cache error: edge set: %w", err)
 	}
 	return nil
