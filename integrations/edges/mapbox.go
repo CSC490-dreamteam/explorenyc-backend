@@ -3,14 +3,18 @@ package edges
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/CSC490-dreamteam/explorenyc-backend/data/cache"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
-type Mapbox struct{}
+type Mapbox struct {
+	Cache *cache.Cache
+}
 
 func (m Mapbox) AcquireCarTravelTime(Addrs []Address) (EdgeWeights, error) {
 	return m.acquireTravelTime(Addrs, "mapbox/driving-traffic")
@@ -126,7 +130,7 @@ func (m Mapbox) AcquireCarLeg(origin Address, destination Address) (Leg, error) 
 	return m.acquireLeg(origin, destination, Car)
 }
 
-func (m Mapbox) acquireLeg(origin Address, destination Address, transitType TransitType) (Leg, error) {
+func (m Mapbox) acquireLeg(origin Address, destination Address, transitType TransitType) (leg Leg, err error) {
 
 	var profile string
 	switch transitType {
@@ -136,6 +140,15 @@ func (m Mapbox) acquireLeg(origin Address, destination Address, transitType Tran
 		profile = "mapbox/driving-traffic"
 	default:
 		return Leg{}, fmt.Errorf("unsupported transit type: %d", transitType)
+	}
+
+	// Check cache for legs
+	edgeval, err := m.Cache.GetEdgeValue(origin, transitType, destination)
+	if err != nil {
+		slog.Warn("cache edge get error", "err", err)
+	}
+	if edgeval != nil && edgeval.Legs != nil {
+		return edgeval.Legs[0], nil // Mapbox returns single leg
 	}
 
 	coords := fmt.Sprintf("%.6f,%.6f;%.6f,%.6f", origin.Lon, origin.Lat, destination.Lon, destination.Lat)
@@ -189,10 +202,22 @@ func (m Mapbox) acquireLeg(origin Address, destination Address, transitType Tran
 
 	polyline := route.Geometry
 
-	return Leg{
+	leg = Leg{
 		TransportType: transitType,
-		TravelTimes:   int(route.Duration/60) + 1, //convert to minutes
+		TravelTimes:   int(route.Duration/60) + 1,
 		TransitCosts:  0,
 		Polylines:     []string{polyline},
-	}, nil
+	}
+
+	go func() {
+		if edgeval == nil {
+			edgeval = &cache.EdgeValue{}
+		}
+		edgeval.Legs = []Leg{leg}
+		if err := m.Cache.SetEdgeValue(origin, transitType, destination, edgeval); err != nil {
+			slog.Warn("cache edge legs set error", "err", err)
+		}
+	}()
+
+	return leg, nil
 }
