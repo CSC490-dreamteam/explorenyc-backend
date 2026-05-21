@@ -20,7 +20,7 @@ func New() (*Cache, error) {
 
 	opts, err := redis.ParseURL(url)
 	if err != nil {
-		return nil, fmt.Errorf("cache: parse REDIS_URL: %w", err)
+		return nil, fmt.Errorf("cache error: parse REDIS_URL: %w", err)
 	}
 
 	client := redis.NewClient(opts)
@@ -29,7 +29,7 @@ func New() (*Cache, error) {
 
 func (c *Cache) Ping() error {
 	if c.client == nil {
-		return fmt.Errorf("cache: no redis client configured")
+		return fmt.Errorf("cache error: no redis client configured")
 	}
 	return c.client.Ping(context.Background()).Err()
 }

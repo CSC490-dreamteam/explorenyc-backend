@@ -40,12 +40,12 @@ func (c *Cache) GetEdgeValue(originLat, originLon float64, transit TransitType, 
 		if err == redis.Nil {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("cache: edge get: %w", err)
+		return nil, fmt.Errorf("cache error: edge get: %w", err)
 	}
 
 	var result EdgeValue
 	if err := json.Unmarshal(val, &result); err != nil {
-		return nil, fmt.Errorf("cache: edge unmarshal: %w", err)
+		return nil, fmt.Errorf("cache error: edge unmarshal: %w", err)
 	}
 	return &result, nil
 }
@@ -57,11 +57,11 @@ func (c *Cache) SetEdgeValue(originLat, originLon float64, transit TransitType, 
 
 	data, err := json.Marshal(edge)
 	if err != nil {
-		return fmt.Errorf("cache: edge marshal: %w", err)
+		return fmt.Errorf("cache error: edge marshal: %w", err)
 	}
 
 	if err := c.client.Set(context.Background(), formEdgeKey(originLat, originLon, transit.String(), destLat, destLon), data, edgeTTL).Err(); err != nil {
-		return fmt.Errorf("cache: edge set: %w", err)
+		return fmt.Errorf("cache error: edge set: %w", err)
 	}
 	return nil
 }

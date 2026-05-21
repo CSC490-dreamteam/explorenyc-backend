@@ -54,12 +54,12 @@ func (c *Cache) GetGeocodeValue(addrString string) (*Address, error) {
 		if err == redis.Nil {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("cache: geocode get: %w", err)
+		return nil, fmt.Errorf("cache error: geocode get: %w", err)
 	}
 
 	var result Address
 	if err := json.Unmarshal(val, &result); err != nil {
-		return nil, fmt.Errorf("cache: geocode unmarshal: %w", err)
+		return nil, fmt.Errorf("cache error: geocode unmarshal: %w", err)
 	}
 	return &result, nil
 }
@@ -72,11 +72,11 @@ func (c *Cache) SetGeocodeValue(addrString string, address *Address) error {
 
 	data, err := json.Marshal(address)
 	if err != nil {
-		return fmt.Errorf("cache: geocode marshal: %w", err)
+		return fmt.Errorf("cache error: geocode marshal: %w", err)
 	}
 
 	if err := c.client.Set(context.Background(), formGeocodeKey(addrString), data, geocodeTTL).Err(); err != nil {
-		return fmt.Errorf("cache: geocode set: %w", err)
+		return fmt.Errorf("cache error: geocode set: %w", err)
 	}
 	return nil
 }
