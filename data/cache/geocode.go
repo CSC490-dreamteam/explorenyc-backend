@@ -15,7 +15,7 @@ import (
 
 const (
 	geocodeKeyPrefix = "geo:"
-	geocodeTTL       = 30 * 24 * time.Hour
+	geocodeTTL       = 30 * 24 * time.Hour //30 days
 )
 
 var multiSpace = regexp.MustCompile(`\s+`)
@@ -38,7 +38,7 @@ func normalizeAddress(addr string) string {
 }
 
 // makes the key when given a plain string such as 'empire state building'
-func makeGeocodeKey(addrString string) string {
+func formGeocodeKey(addrString string) string {
 	hash := sha256.Sum256([]byte(normalizeAddress(addrString)))
 	return fmt.Sprintf("%s%x", geocodeKeyPrefix, hash)
 }
@@ -49,7 +49,7 @@ func (c *Cache) GetGeocodeValue(addrString string) (*Address, error) {
 		return nil, nil
 	}
 
-	val, err := c.client.Get(context.Background(), makeGeocodeKey(addrString)).Bytes()
+	val, err := c.client.Get(context.Background(), formGeocodeKey(addrString)).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, nil
@@ -75,7 +75,7 @@ func (c *Cache) SetGeocodeValue(addrString string, address *Address) error {
 		return fmt.Errorf("cache: geocode marshal: %w", err)
 	}
 
-	if err := c.client.Set(context.Background(), makeGeocodeKey(addrString), data, geocodeTTL).Err(); err != nil {
+	if err := c.client.Set(context.Background(), formGeocodeKey(addrString), data, geocodeTTL).Err(); err != nil {
 		return fmt.Errorf("cache: geocode set: %w", err)
 	}
 	return nil
