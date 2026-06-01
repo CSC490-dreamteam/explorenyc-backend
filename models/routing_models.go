@@ -1,5 +1,7 @@
 package models
 
+import "fmt"
+
 type Stop struct {
 	Name      string
 	Latitude  float64
@@ -88,3 +90,16 @@ const (
 	//Biking TODO?
 	//Uber TODO
 )
+
+func (t TransitType) String() string {
+	switch t {
+	case Walking:
+		return "walking"
+	case Car:
+		return "car"
+	case Subway:
+		return "subway"
+	default:
+		return fmt.Sprintf("transit(%d)", t)
+	}
+}

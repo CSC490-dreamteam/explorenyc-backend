@@ -118,7 +118,7 @@ func TestLocalGenerateItinerary(t *testing.T) {
 	requestBody := ItineraryRequest{
 		TripName:      "NYC Adventure",
 		Date:          "2023-10-27",
-		EntryTime:     "11:00 AM",
+		EntryTime:     "10:00 AM",
 		ExitTime:      "09:00 PM",
 		StartLocation: "penn station new york ny",
 		EndLocation:   strPtr("penn station new york ny"), //round trip
