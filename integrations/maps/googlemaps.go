@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/CSC490-dreamteam/explorenyc-backend/data/cache"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 )
 
-type GoogleMaps struct{}
+type GoogleMaps struct {
+	Cache *cache.Cache
+}
 
 //FOR NOW JUST PROGRAM RAW WITHOUT INTERFACE SO WE KNOW WHAT WE ARE DOING
 
@@ -39,6 +43,16 @@ func GetGoogleMapsRouteExportURL(path Path) string {
 }
 
 func (g GoogleMaps) AcquireAddress(query string) (Address, error) {
+	if g.Cache != nil {
+		cached, err := g.Cache.GetGeocodeValue(query)
+		if err != nil {
+			slog.Warn("cache geocode get error", "err", err)
+		}
+		if cached != nil {
+			return *cached, nil
+		}
+	}
+
 	const endpoint = "https://places.googleapis.com/v1/places:searchText"
 	apiKey := os.Getenv("GOOGLE_MAPS_PLACES_API_KEY")
 
@@ -147,7 +161,7 @@ func (g GoogleMaps) AcquireAddress(query string) (Address, error) {
 	}
 	street += route
 
-	return Address{
+	addr := Address{
 		Lat:              place.Location.Latitude,
 		Lon:              place.Location.Longitude,
 		Street:           street,
@@ -156,6 +170,15 @@ func (g GoogleMaps) AcquireAddress(query string) (Address, error) {
 		Zip:              zip,
 		PlaceName:        place.DisplayName.Text,
 		FormattedAddress: place.FormattedAddress,
-	}, nil
+	}
 
+	if g.Cache != nil {
+		go func() {
+			if err := g.Cache.SetGeocodeValue(query, &addr); err != nil {
+				slog.Warn("cache geocode set error", "err", err)
+			}
+		}()
+	}
+
+	return addr, nil
 }

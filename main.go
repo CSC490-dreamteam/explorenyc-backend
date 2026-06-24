@@ -1,15 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
-	"strings"
-	"sync"
-	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -19,10 +14,10 @@ import (
 	"github.com/CSC490-dreamteam/explorenyc-backend/data/cache"
 	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/edges"
 	maps "github.com/CSC490-dreamteam/explorenyc-backend/integrations/maps"
+	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/solver"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
-	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/postprocessing"
-	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/preprocessing"
+	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/processing"
 )
 
 type RouteRequest struct {
@@ -85,6 +80,27 @@ func main() {
 	}
 	pythonURL = pythonURL + "/generate_route"
 
+	//setup context
+	genCtx := processing.GenerationContext{
+		Cache:       redisCache,
+		MapProvider: maps.GoogleMaps{Cache: redisCache},
+		EdgeProviders: processing.EdgeProviders{
+			Walking: edges.Mapbox{Cache: redisCache},
+			Car:     edges.Mapbox{Cache: redisCache},
+			Subway:  edges.GoogleMaps{Cache: redisCache},
+		},
+		CombineConfig: CombineConfig{
+			TimeValueCentsPerMinute:  25,
+			WalkingMaxMinutes:        25,
+			WalkingMaxDistanceMeters: 2000,
+			SubwayFlatFareCents:      300,
+			CarBaseFareCents:         250,
+			CarCostPerMinuteCents:    12,
+			CarCostPerKilometerCents: 50,
+		},
+		Solver: solver.NewPythonSolver(pythonURL),
+	}
+
 	//old brute force google routing endpoint
 	router.POST("/GenerateRoute", func(context *gin.Context) {
 		var req RouteRequest
@@ -95,7 +111,7 @@ func main() {
 
 		var stops []Stop
 		var errors []string
-		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
+		var mapProvider maps.QueryProvider = maps.GoogleMaps{Cache: redisCache}
 
 		for _, location := range req.Locations {
 
@@ -126,398 +142,41 @@ func main() {
 	})
 
 	router.POST("/GenerateItinerary", func(context *gin.Context) {
-		//get json off frontend
-		var ItineraryReq ItineraryRequest
-		if err := context.ShouldBindJSON(&ItineraryReq); err != nil {
+		var itineraryReq ItineraryRequest
+		if err := context.ShouldBindJSON(&itineraryReq); err != nil {
 			context.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 			return
 		}
 
-		//parse frontend json
-
-		var places []Address
-		var errors []error
-		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
-
-		hasEnd := ItineraryReq.EndLocation != nil && *ItineraryReq.EndLocation != ""
-
-		//handle roundtrip edgecase
-		StartEqualsEnd := hasEnd && strings.EqualFold(ItineraryReq.StartLocation, *ItineraryReq.EndLocation)
-
-		needsSeparateEnd := hasEnd && !StartEqualsEnd
-
-		//insert start location
-		startAddr, err := mapProvider.AcquireAddress(ItineraryReq.StartLocation)
+		itinerary, warnings, err := processing.GenerateItinerary(genCtx, itineraryReq)
 		if err != nil {
-			context.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("could not resolve start location '%s': %v", ItineraryReq.StartLocation, err)})
+			var addrErr *processing.AddressResolutionError
+			var unprocessable *solver.UnprocessableInputError
+			switch {
+			case errors.As(err, &addrErr):
+				context.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			case errors.As(err, &unprocessable):
+				context.Data(http.StatusUnprocessableEntity, "application/json", unprocessable.Body)
+			default:
+				context.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			}
 			return
 		}
 
-		//insert end location if it exists and is different from start
-		var endAddr Address
-		if needsSeparateEnd {
-			endAddr, err = mapProvider.AcquireAddress(*ItineraryReq.EndLocation)
-			if err != nil {
-				context.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("could not resolve end location '%s': %v", *ItineraryReq.EndLocation, err)})
-				return
-			}
-		}
-
-		//prep places for concurrency
-		numStops := len(ItineraryReq.Stops)
-		numPlaces := numStops + 1 // +1 for the start location
-		if needsSeparateEnd {
-			numPlaces++ // +1 for the end location if it's different from the start
-		}
-
-		places = make([]Address, numPlaces)
-		places[0] = startAddr
-
-		stopErrors := make([]error, numStops)
-		var stopGroup sync.WaitGroup
-		stopGroup.Add(numStops)
-
-		//concurrently iterate through stops and acquire addresses, storing errors in a separate slice
-		for i, stop := range ItineraryReq.Stops {
-			go func(index int, location string) {
-				defer stopGroup.Done()
-
-				addr, err := mapProvider.AcquireAddress(location)
-				if err != nil {
-					stopErrors[index] = fmt.Errorf("could not resolve '%s': %v", location, err)
-					return
-				}
-
-				places[index+1] = addr
-			}(i, stop.Location)
-		}
-
-		stopGroup.Wait()
-
-		//append stop errors to main errors slice after concurrency is done
-		for _, e := range stopErrors {
-			if e != nil {
-				errors = append(errors, e)
-			}
-		}
-
-		// place the separate end at the tail of places
-		if needsSeparateEnd {
-			places[numPlaces-1] = endAddr
-		}
-
-		//compute final indices for the solver
-		startIndex := 0
-		endIndex := -1 // defaults to being open ended
-		if needsSeparateEnd {
-			endIndex = numPlaces - 1 //index of the separate end location
-		} else if StartEqualsEnd {
-			endIndex = 0 //round trip
-		}
-
-		//get edges between stops//
-
-		//setup concurrency for edges
-		var edgeWeightGroup sync.WaitGroup
-		var walkingEdges, carEdges, subwayEdges EdgeWeights
-		var walkingErr, carErr, subwayErr error
-
-		//setup edge providers
-		walkingDataProvider := edges.Mapbox{Cache: redisCache}
-		carDataProvider := edges.Mapbox{Cache: redisCache}
-		subwayDataProvider := edges.GoogleMaps{Cache: redisCache}
-
-		//count transit types
-		selectedTransitsCount := 0
-		for _, selected := range ItineraryReq.TransitTypes {
-			if selected {
-				selectedTransitsCount++
-			}
-		}
-		edgeWeightGroup.Add(selectedTransitsCount)
-
-		//get edgeweights
-		//
-		if ItineraryReq.TransitTypes["walking"] {
-			go func() {
-				defer edgeWeightGroup.Done()
-				walkingEdges, walkingErr = walkingDataProvider.AcquireWalkingTravelTime(places)
-			}()
-		}
-
-		if ItineraryReq.TransitTypes["subway"] {
-			go func() {
-				defer edgeWeightGroup.Done()
-				subwayEdges, subwayErr = subwayDataProvider.AcquireSubwayTravelTime(places)
-			}()
-		}
-
-		if ItineraryReq.TransitTypes["car"] {
-			go func() {
-				defer edgeWeightGroup.Done()
-				carEdges, carErr = carDataProvider.AcquireCarTravelTime(places)
-			}()
-		}
-
-		edgeWeightGroup.Wait()
-
-		//acquire edgeweight errors after concurrency is done
-		if ItineraryReq.TransitTypes["walking"] && walkingErr != nil {
-			errors = append(errors, fmt.Errorf("failed to get walking travel times: %v", walkingErr))
-		}
-
-		if ItineraryReq.TransitTypes["subway"] && subwayErr != nil {
-			errors = append(errors, fmt.Errorf("failed to get subway travel times: %v", subwayErr))
-		}
-
-		if ItineraryReq.TransitTypes["car"] && carErr != nil {
-			errors = append(errors, fmt.Errorf("failed to get car travel times: %v", carErr))
-		}
-
-		fmt.Println("Edge Weights acquired")
-
-		transitconfig := CombineConfig{
-			TimeValueCentsPerMinute:  25,
-			WalkingMaxMinutes:        25,
-			WalkingMaxDistanceMeters: 2000,
-			SubwayFlatFareCents:      300,
-			CarBaseFareCents:         250,
-			CarCostPerMinuteCents:    12,
-			CarCostPerKilometerCents: 50,
-		}
-
-		//make edgeweights array and array of whatever transits were selected
-		var alledgeweights []EdgeWeights
-		var selectedTransitTypes []TransitType
-		if ItineraryReq.TransitTypes["walking"] {
-			alledgeweights = append(alledgeweights, walkingEdges)
-			selectedTransitTypes = append(selectedTransitTypes, Walking)
-		}
-		if ItineraryReq.TransitTypes["subway"] {
-			alledgeweights = append(alledgeweights, subwayEdges)
-			selectedTransitTypes = append(selectedTransitTypes, Subway)
-		}
-		if ItineraryReq.TransitTypes["car"] {
-			alledgeweights = append(alledgeweights, carEdges)
-			selectedTransitTypes = append(selectedTransitTypes, Car)
-		}
-
-		optimizedMatrices, err := preprocessing.CombineBestEdges(alledgeweights, selectedTransitTypes, transitconfig)
-
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to combine best edges: %v", err))
-			fmt.Printf("combining error: %v\n", err)
-			for _, e := range errors {
-				fmt.Printf("Error: %v\n", e)
-			}
-		}
-
-		fmt.Println("Matrices Combined")
-
-		//create python payload
-		var solverNodes []SolverNode
-		//add starting location
-		solverNodes = append(solverNodes, SolverNode{
-			ID:                "0",
-			Name:              places[0].PlaceName,
-			Latitude:          places[0].Lat,
-			Longitude:         places[0].Lon,
-			DurationInMinutes: 0, // start point, no dwell time
-			TimeWindowStart:   parseTimeIntoMinutes(ItineraryReq.EntryTime),
-			TimeWindowEnd:     parseTimeIntoMinutes(ItineraryReq.ExitTime),
-			Priority:          Mandatory,
-			DropPenalty:       0,
-		})
-
-		//map each place to its index for the post processor to use later when it gets the python output
-		addressMapping := make(map[int]Address)
-		for i, place := range places {
-			addressMapping[i] = place
-		}
-
-		for i, stop := range ItineraryReq.Stops {
-			//todo create string id or osmething
-
-			var timeWindowStart int
-			var timeWindowEnd int
-
-			//set time window for that specific node for when arrival time can be set
-			if stop.TimePreference != nil {
-				preferred := parseTimeIntoMinutes(*stop.TimePreference)
-				timeWindowStart = preferred - 30 //30 min before preferred arrival time
-				timeWindowEnd = preferred - 5    //5 min before actual time
-			} else {
-				// no preference = anytime during the day is fine
-				timeWindowStart = parseTimeIntoMinutes(ItineraryReq.EntryTime)
-				timeWindowEnd = parseTimeIntoMinutes(ItineraryReq.ExitTime)
-			}
-
-			//setup priority and drop penalty based on whether stop is mandatory or not
-			prio := WantToSee
-			if stop.Mandatory {
-				prio = Mandatory
-			}
-
-			var dropPenalty int = 0
-			switch prio {
-			case Mandatory:
-				dropPenalty = 0 //undroppable
-			case WantToSee:
-				dropPenalty = 8 //will be dropped if it screws over like 4-6 optional places?
-			case Optional:
-				dropPenalty = 2
-			}
-
-			node := SolverNode{ //we do i+1 to account for the start node we added at the beginning
-				ID:                fmt.Sprintf("%d", i+1),
-				Name:              places[i+1].PlaceName,
-				Latitude:          places[i+1].Lat,
-				Longitude:         places[i+1].Lon,
-				DurationInMinutes: ItineraryReq.Stops[i].Duration, //dwell time at the stop, NOT i+1 on purpose
-				TimeWindowStart:   timeWindowStart,                //fix?
-				TimeWindowEnd:     timeWindowEnd,                  //fix
-				Priority:          prio,
-				DropPenalty:       dropPenalty,
-			}
-			solverNodes = append(solverNodes, node)
-		}
-
-		//add end location (if one is set)
-		if needsSeparateEnd {
-			solverNodes = append(solverNodes, SolverNode{
-				ID:                fmt.Sprintf("%d", numPlaces-1),
-				Name:              places[numPlaces-1].PlaceName,
-				Latitude:          places[numPlaces-1].Lat,
-				Longitude:         places[numPlaces-1].Lon,
-				DurationInMinutes: 0,
-				TimeWindowStart:   parseTimeIntoMinutes(ItineraryReq.EntryTime),
-				TimeWindowEnd:     parseTimeIntoMinutes(ItineraryReq.ExitTime),
-				Priority:          Mandatory,
-				DropPenalty:       0,
-			})
-		}
-		//roundtrip edgecase is covered with endIndex already being set to 0
-
-		solverInput := SolverInput{
-			TripName:              ItineraryReq.TripName,
-			Date:                  ItineraryReq.Date,
-			Nodes:                 solverNodes,
-			StartIndex:            startIndex,
-			EndIndex:              endIndex,
-			DayStartTimeInMinutes: parseTimeIntoMinutes(ItineraryReq.EntryTime),
-			DayEndTimeInMinutes:   parseTimeIntoMinutes(ItineraryReq.ExitTime),
-			BudgetInCents:         5000, //PLACEHOLDER, $50 budget for transit costs
-			TravelTimeMatrix:      optimizedMatrices.TimeMinutes,
-			CostMatrix:            optimizedMatrices.CostCents,
-			CandidateGroups:       []CandidateGroup{}, //TODO wait on nick
-			RouteVariant:          Balanced,
-			//empty so python doesnt get mad
-			Precedences:   [][2]int{},
-			ForcedEdges:   [][2]int{},
-			ExcludedStops: []int{},
-		}
-
-		fmt.Printf("Solver input: %+v\n", solverInput)
-
-		//send python payload
-		pythonClient := &http.Client{Timeout: 10 * time.Second}
-
-		pythonJSON, err := json.Marshal(solverInput)
-		if err != nil {
-			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to marshal solver input: %v", err)})
-			return
-		}
-
-		pythonReq, err := http.NewRequest("POST", pythonURL, bytes.NewBuffer(pythonJSON))
-		if err != nil {
-			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create request: %v", err)})
-			fmt.Printf("failed to create request: %v", err)
-			return
-		}
-		pythonReq.Header.Set("Content-Type", "application/json")
-
-		pythonResp, err := pythonClient.Do(pythonReq)
-		if err != nil {
-			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to reach python service: %v", err)})
-			fmt.Printf("failed to reach python service: %v", err)
-			return
-		}
-		defer pythonResp.Body.Close()
-
-		//if the routgen was given impossible constraints
-		if pythonResp.StatusCode == http.StatusUnprocessableEntity {
-			body, _ := io.ReadAll(pythonResp.Body)
-			context.Data(http.StatusUnprocessableEntity, "application/json", body)
-			return
-
-			//if some other error occurred
-		} else if pythonResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(pythonResp.Body)
-			context.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("python service returned %d: %s", pythonResp.StatusCode, string(body)),
-			})
-			return
-		}
-
-		//parse python response
-		var solverOutput SolverOutput
-		if err := json.NewDecoder(pythonResp.Body).Decode(&solverOutput); err != nil {
-			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to decode python response: %v", err)})
-			return
-		}
-
-		fmt.Printf("Solver output: %+v\n", solverOutput)
-
-		//process python response with post processor
-		PostProcessorInput := PostProcessorInput{
-			SolverInput:       solverInput,
-			SolverOutput:      solverOutput,
-			StopMap:           addressMapping,
-			TransitTypeMatrix: optimizedMatrices.Mode,
-			TransitCostMatrix: optimizedMatrices.CostCents,
-		}
-
-		itinerary, err := postprocessing.ProcessRouteResponse(PostProcessorInput, *redisCache)
-
-		if err != nil {
-			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to process route response: %v", err)})
-			return
-		}
-
-		//print out errors
-		if len(errors) > 0 {
+		//surface non-fatal warnings (e.g. a stop that couldn't be resolved) alongside the itinerary
+		if len(warnings) > 0 {
 			context.JSON(http.StatusOK, gin.H{
-				"warnings":  fmt.Sprintf("itinerary generated with the following warnings: %v", errors),
+				"warnings":  fmt.Sprintf("itinerary generated with the following warnings: %v", warnings),
 				"itinerary": itinerary,
 			})
 			return
 		}
 
-		//send out the itinerary to the frontend
 		context.JSON(http.StatusOK, itinerary)
 	})
 
 	router.Run(":" + port)
 
-}
-
-// turn 09:00 AM to 540
-func parseTimeIntoMinutes(timeStr string) int {
-	timeStr = strings.TrimSpace(timeStr)
-	timeStr = strings.ToUpper(timeStr)
-	timeStr = strings.ReplaceAll(timeStr, "AM", " AM")
-	timeStr = strings.ReplaceAll(timeStr, "PM", " PM")
-	timeStr = strings.TrimSpace(timeStr)
-	layouts := []string{"3:04 PM", "15:04", "15:04:05"}
-
-	for _, layout := range layouts {
-		if t, err := time.Parse(layout, timeStr); err == nil {
-			return int(t.Hour()*60 + t.Minute())
-		}
-	}
-
-	fmt.Printf("invalid time format: %s", timeStr)
-	return -1
 }
 
 // func ConvertModeMatrix(strMatrix [][]string) ([][]TransitType, error) {

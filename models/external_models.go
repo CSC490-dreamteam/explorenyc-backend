@@ -48,6 +48,13 @@ type ItineraryRequest struct {
 	Stops         []StopRequest   `json:"stops"`
 }
 
+// Places[0] is always the start
+// EndIndex: 0 = round trip (end is the start), -1 = open ended, otherwise last index is last stop
+type AcquiredPlaces struct {
+	Places   []Address
+	EndIndex int
+}
+
 // ---------------- Post Processor ----------------
 
 type PostProcessorInput struct {
