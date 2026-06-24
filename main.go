@@ -17,7 +17,6 @@ import (
 	"github.com/CSC490-dreamteam/explorenyc-backend/integrations/solver"
 	. "github.com/CSC490-dreamteam/explorenyc-backend/models"
 	pathfinders "github.com/CSC490-dreamteam/explorenyc-backend/route_generation/pathfinders"
-	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/preprocessing"
 	"github.com/CSC490-dreamteam/explorenyc-backend/route_generation/processing"
 )
 
@@ -84,8 +83,8 @@ func main() {
 	//setup context
 	genCtx := processing.GenerationContext{
 		Cache:       redisCache,
-		MapProvider: maps.GoogleMaps{},
-		EdgeProviders: preprocessing.EdgeProviders{
+		MapProvider: maps.GoogleMaps{Cache: redisCache},
+		EdgeProviders: processing.EdgeProviders{
 			Walking: edges.Mapbox{Cache: redisCache},
 			Car:     edges.Mapbox{Cache: redisCache},
 			Subway:  edges.GoogleMaps{Cache: redisCache},
@@ -112,7 +111,7 @@ func main() {
 
 		var stops []Stop
 		var errors []string
-		var mapProvider maps.QueryProvider = maps.GoogleMaps{}
+		var mapProvider maps.QueryProvider = maps.GoogleMaps{Cache: redisCache}
 
 		for _, location := range req.Locations {
 

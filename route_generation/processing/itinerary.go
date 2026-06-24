@@ -14,7 +14,7 @@ import (
 type GenerationContext struct {
 	Cache         *cache.Cache
 	MapProvider   maps.QueryProvider
-	EdgeProviders preprocessing.EdgeProviders
+	EdgeProviders EdgeProviders
 	CombineConfig CombineConfig
 	Solver        solver.RouteSolver
 }
@@ -26,12 +26,12 @@ type GenerationContext struct {
 // The returned []error are non-fatal warnings (e.g. a stop that couldn't be
 // resolved) that the caller may still want to surface to the user.
 func GenerateItinerary(ctx GenerationContext, req ItineraryRequest) (Itinerary, []error, error) {
-	resolved, warnings, err := ResolveAddresses(req, ctx.MapProvider)
+	resolved, warnings, err := AcquireAddresses(req, ctx.MapProvider)
 	if err != nil {
 		return Itinerary{}, nil, err
 	}
 
-	edgeWeights, selectedTypes, edgeErrs := preprocessing.AcquireEdgeWeights(resolved.Places, req.TransitTypes, ctx.EdgeProviders)
+	edgeWeights, selectedTypes, edgeErrs := AcquireEdgeWeights(resolved.Places, req.TransitTypes, ctx.EdgeProviders)
 	warnings = append(warnings, edgeErrs...)
 
 	matrices, err := preprocessing.CombineBestEdges(edgeWeights, selectedTypes, ctx.CombineConfig)
